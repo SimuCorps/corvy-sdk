@@ -1,0 +1,20 @@
+{
+  "name": "corvy-sdk",
+  "version": "1.0.0",
+  "description": "Client SDK for building Corvy bots",
+  "main": "corvy-sdk.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "corvy",
+    "bot",
+    "sdk",
+    "chat"
+  ],
+  "author": "SimuCorps Team",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.4.0"
+  }
+} 

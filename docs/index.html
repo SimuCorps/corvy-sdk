@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Corvy Bot SDK Documentation</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Corvy Bot SDK</h1>
+    
+    <p>
+      Welcome to the Corvy Bot SDK documentation. These SDKs make it easy to create interactive bots
+      that can respond to commands in Corvy chat rooms.
+    </p>
+    
+    <div class="note">
+      <strong>Note:</strong> You'll need a bot token from the Corvy developer portal to use these SDKs.
+    </div>
+    
+    <h2>Available SDKs</h2>
+    
+    <ul>
+      <li><a href="#javascript">JavaScript SDK</a></li>
+      <li><a href="#ruby">Ruby SDK</a></li>
+      <li><a href="#python">Python SDK</a></li>
+    </ul>
+    
+    <h2 id="javascript">JavaScript SDK</h2>
+    
+    <h3>Installation</h3>
+    
+    <pre><code>cd javascript
+npm install</code></pre>
+    
+    <h3>Usage</h3>
+    
+    <pre><code>const CorvyBot = require('./corvy-sdk');
+
+// Replace with your bot token and API base URL
+const BOT_TOKEN = 'your_bot_token_here';
+const API_URL = 'https://corvy.chat/api/v1';
+
+// Define commands that the bot will respond to
+const commands = [
+  {
+    prefix: '!hello',
+    handler: (message) => {
+      return `Hello, ${message.user.username}!`;
+    }
+  }
+];
+
+// Create and start the bot
+const bot = new CorvyBot({
+  apiToken: BOT_TOKEN,
+  apiBaseUrl: API_URL,
+  commands: commands
+});
+
+bot.start();</code></pre>
+    
+    <h3>Example Bot</h3>
+    
+    <p>See <code>javascript/example-bot.js</code> for a complete example bot.</p>
+    
+    <h2 id="ruby">Ruby SDK</h2>
+    
+    <h3>Installation</h3>
+    
+    <pre><code>cd ruby
+# If you're using Bundler
+bundle install
+# Or install the gem directly
+gem build corvy_sdk.gemspec
+gem install corvy_sdk-1.0.0.gem</code></pre>
+    
+    <h3>Usage</h3>
+    
+    <pre><code>require_relative 'corvy_sdk'
+
+# Replace with your bot token and API base URL
+BOT_TOKEN = 'your_bot_token_here'
+API_URL = 'https://corvy.chat/api/v1'
+
+# Define commands that the bot will respond to
+commands = [
+  {
+    prefix: '!hello',
+    handler: lambda do |message|
+      "Hello, #{message['user']['username']}!"
+    end
+  }
+]
+
+# Create and start the bot
+bot = CorvyBot.new({
+  apiToken: BOT_TOKEN,
+  apiBaseUrl: API_URL,
+  commands: commands
+})
+
+bot.start</code></pre>
+    
+    <h3>Example Bot</h3>
+    
+    <p>See <code>ruby/example_bot.rb</code> for a complete example bot.</p>
+    
+    <h2 id="python">Python SDK</h2>
+    
+    <h3>Installation</h3>
+    
+    <pre><code>cd python
+pip install -e .</code></pre>
+    
+    <h3>Usage</h3>
+    
+    <pre><code>from corvy_sdk import CorvyBot
+
+# Replace with your bot token and API base URL
+BOT_TOKEN = 'your_bot_token_here'
+API_URL = 'https://corvy.chat/api/v1'
+
+# Define commands that the bot will respond to
+def hello_handler(message):
+    return f"Hello, {message['user']['username']}!"
+
+commands = [
+    {
+        'prefix': '!hello',
+        'handler': hello_handler
+    }
+]
+
+# Create and start the bot
+bot = CorvyBot({
+    'apiToken': BOT_TOKEN,
+    'apiBaseUrl': API_URL,
+    'commands': commands
+})
+
+bot.start()</code></pre>
+    
+    <h3>Example Bot</h3>
+    
+    <p>See <code>python/example_bot.py</code> for a complete example bot.</p>
+    
+    <h2>API Documentation</h2>
+    
+    <p>All SDKs interact with the Corvy API via the following endpoints:</p>
+    
+    <ul>
+      <li><code>POST /auth</code> - Authenticate the bot</li>
+      <li><code>GET /messages</code> - Get new messages (with cursor)</li>
+      <li><code>POST /flocks/:flock_id/nests/:nest_id/messages</code> - Send a response message</li>
+    </ul>
+    
+    <h2>Testing Your Bot</h2>
+    
+    <ol>
+      <li>Create a bot in the Corvy developer portal</li>
+      <li>Get the bot's API token</li>
+      <li>Replace the placeholder token in the example code</li>
+      <li>Run your bot</li>
+      <li>Send messages in a chat room where the bot is present</li>
+    </ol>
+    
+    <h2>Getting Help</h2>
+    
+    <p>For more information or assistance, please contact the Corvy development team.</p>
+  </div>
+</body>
+</html> 
