@@ -125,14 +125,14 @@ class CorvyBot:
                         message = Message(message["id"], message["content"],
                                           message["flock_name"], message["flock_id"],
                                           message["nest_name"], message["nest_id"],
-                                          datetime.strptime(message["timestamp"], "%Y-%m-%dT%H:%M:%SZ"), 
+                                          datetime.strptime(message["created_at"], "%Y-%m-%dT%H:%M:%SZ"), 
                                           MessageUser(message["user"]["id"], message["user"]["username"], message["user"]["is_bot"]))
                         
                         # Skip bot messages
                         if message.user.is_bot:
                             continue
 
-                        print(f"Message from {message.user.username} in {message['flock_name']}/{message['nest_name']}: {message['content']}")
+                        print(f"Message from {message.user.username} in {message.flock_name}/{message.nest_name}: {message.content}")
 
                         # Check for commands
                         await self._handle_command(message)
@@ -152,7 +152,7 @@ class CorvyBot:
         Args:
             message: Message object
         """
-        message_content: str = message['content'].lower()
+        message_content: str = message.content.lower()
         # Check each command prefix
         for prefix, handler in self.commands.items():
             if message_content.startswith(prefix.lower()):
@@ -162,7 +162,7 @@ class CorvyBot:
                 response_content = await handler(message)
                 
                 # Send the response
-                await self.send_message(message['flock_id'], message['nest_id'], response_content)
+                await self.send_message(message.flock_id, message.nest_id, response_content)
                 
                 # Stop after first matching command
                 break
