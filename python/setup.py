@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="corvy-sdk",
-    version="1.1.0",
+    version="2.0.0",
     description="Client SDK for building Corvy bots",
     author="SimuCorps Team",
     author_email="contact@simucorps.org",
