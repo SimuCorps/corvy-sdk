@@ -34,9 +34,10 @@ class CorvyBot:
             'Authorization': f"Bearer {token}",
             'Content-Type': 'application/json'
         }
-        
+        self.client_session: aiohttp.ClientSession | None = None
+
         # Setup signal handler for graceful shutdown
-        signal.signal(signal.SIGINT, self._handle_shutdown)
+        signal.signal(signal.SIGINT, self._handle_shutdown_stub)
     
     def command(self, prefix: str | None = None):
         """Register a command.
@@ -54,32 +55,32 @@ class CorvyBot:
         """Start the bot and begin processing messages"""
         try:
             loop = asyncio.new_event_loop()
-            
-            loop.run_until_complete(self._start_async())
-            
+            loop.run_until_complete(self._start_async())    
         except Exception as e:
             print(f"Failed to start bot loop: {str(e)}")
+            traceback.print_exc()
             sys.exit(1)
     
     async def _start_async(self):
         """Start the bot, but in an async context."""
         try:
             print("Starting bot...")
-                        
-            async with aiohttp.ClientSession(self.api_base_url, headers=self.headers) as session:
-                async with session.post(f"{self.api_path}/auth") as response:
-                    response_data = await response.json()
-                    print(f"Bot authenticated: {response_data['bot']['name']}")
             
-                # Establish baseline (gets highest message ID but no messages)
-                print("Establishing baseline with server...")
-
-                async with session.get(f"{self.api_path}/messages", params={'cursor': 0}) as response:
-                    baseline_data = await response.json()
-                    # Save the cursor for future requests
-                    if baseline_data.get('cursor'):
-                        self.current_cursor = baseline_data['cursor']
-                        print(f"Baseline established. Starting with message ID: {self.current_cursor}")
+            self.client_session = aiohttp.ClientSession(self.api_base_url, headers=self.headers)
+            
+            async with self.client_session.post(f"{self.api_path}/auth") as response:
+                response_data = await response.json()
+                print(f"Bot authenticated: {response_data['bot']['name']}")
+        
+            # Establish baseline (gets highest message ID but no messages)
+            print("Establishing baseline with server...")
+            
+            async with self.client_session.get(f"{self.api_path}/messages", params={'cursor': 0}) as response:
+                baseline_data = await response.json()
+                # Save the cursor for future requests
+                if baseline_data.get('cursor'):
+                    self.current_cursor = baseline_data['cursor']
+                    print(f"Baseline established. Starting with message ID: {self.current_cursor}")
             
             # Log command prefixes
             command_prefixes = [cmd for cmd in self.commands.keys()]
@@ -96,24 +97,23 @@ class CorvyBot:
         """Process messages in a loop"""
         while True:
             try:
-                async with aiohttp.ClientSession(self.api_base_url, headers=self.headers) as session:
-                    async with session.get(f"{self.api_path}/messages", params={'cursor': self.current_cursor}) as response:
-                        data = await response.json()
+                async with self.client_session.get(f"{self.api_path}/messages", params={'cursor': self.current_cursor}) as response:
+                    data = await response.json()
 
-                        # Update cursor
-                        if data.get('cursor'):
-                            self.current_cursor = data['cursor']
+                    # Update cursor
+                    if data.get('cursor'):
+                        self.current_cursor = data['cursor']
 
-                        # Process each new message
-                        for message in data.get('messages', []):
-                            # Skip bot messages
-                            if message.get('user', {}).get('is_bot', False):
-                                continue
+                    # Process each new message
+                    for message in data.get('messages', []):
+                        # Skip bot messages
+                        if message.get('user', {}).get('is_bot', False):
+                            continue
 
-                            print(f"Message from {message['user']['username']} in {message['flock_name']}/{message['nest_name']}: {message['content']}")
+                        print(f"Message from {message['user']['username']} in {message['flock_name']}/{message['nest_name']}: {message['content']}")
 
-                            # Check for commands
-                            await self._handle_command(message)
+                        # Check for commands
+                        await self._handle_command(message)
                 
                 # Wait before checking again
                 await asyncio.sleep(1)
@@ -157,14 +157,25 @@ class CorvyBot:
         try:
             print(f'Sending message: "{content}"')
             
-            async with aiohttp.ClientSession(self.api_base_url, headers=self.headers) as session:
-                async with session.post(f"{self.api_path}/flocks/{flock_id}/nests/{nest_id}/messages", json={'content': content}) as response:
-                    pass
+            async with self.client_session.post(f"{self.api_path}/flocks/{flock_id}/nests/{nest_id}/messages", json={'content': content}) as response:
+                pass
                 
         except Exception as e:
             print(f"Failed to send message: {str(e)}")
             
-    def _handle_shutdown(self, sig, frame):
+    def _handle_shutdown_stub(self, sig, frame):
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(self._handle_shutdown(sig, frame))
+        except RuntimeError:
+            asyncio.run(self._handle_shutdown(sig, frame))
+
+    async def _handle_shutdown(self, sig, frame):
         """Handle graceful shutdown"""
         print("Bot shutting down...")
+        await self.client_session.close()
+        try:
+            asyncio.get_running_loop().stop()
+        except RuntimeError:
+            pass
         sys.exit(0)
