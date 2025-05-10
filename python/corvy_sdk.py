@@ -1,14 +1,32 @@
-# CorvyBot SDK - v1.2.0
+# CorvyBot SDK - v1.3.0
 # Client library for building Corvy bots
 
 import aiohttp
 import traceback
 import json
-import time
 import signal
 import sys
 import asyncio
+from dataclasses import dataclass
+from datetime import datetime
 from typing import List, Dict, Callable, Any, Optional, Union
+
+@dataclass
+class MessageUser:
+    id: int
+    username: str
+    is_bot: bool
+    
+@dataclass
+class Message:
+    id: int
+    content: str
+    flock_name: str
+    flock_id: int
+    nest_name: str
+    nest_id: int
+    created_at: datetime
+    user: MessageUser
 
 class CorvyBot:
     """
@@ -58,8 +76,6 @@ class CorvyBot:
             loop.run_until_complete(self._start_async())    
         except Exception as e:
             print(f"Failed to start bot loop: {str(e)}")
-            traceback.print_exc()
-            sys.exit(1)
     
     async def _start_async(self):
         """Start the bot, but in an async context."""
@@ -106,11 +122,17 @@ class CorvyBot:
 
                     # Process each new message
                     for message in data.get('messages', []):
+                        message = Message(message["id"], message["content"],
+                                          message["flock_name"], message["flock_id"],
+                                          message["nest_name"], message["nest_id"],
+                                          datetime.strptime(message["timestamp"], "%Y-%m-%dT%H:%M:%SZ"), 
+                                          MessageUser(message["user"]["id"], message["user"]["username"], message["user"]["is_bot"]))
+                        
                         # Skip bot messages
-                        if message.get('user', {}).get('is_bot', False):
+                        if message.user.is_bot:
                             continue
 
-                        print(f"Message from {message['user']['username']} in {message['flock_name']}/{message['nest_name']}: {message['content']}")
+                        print(f"Message from {message.user.username} in {message['flock_name']}/{message['nest_name']}: {message['content']}")
 
                         # Check for commands
                         await self._handle_command(message)
@@ -123,7 +145,7 @@ class CorvyBot:
                 traceback.print_exc()
                 await asyncio.sleep(5)  # Longer delay on error
     
-    async def _handle_command(self, message: Dict[str, Any]):
+    async def _handle_command(self, message: Message):
         """
         Handle command messages
         
