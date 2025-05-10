@@ -116,9 +116,15 @@ BOT_TOKEN = 'your_bot_token_here'
 # Create the bot
 bot = CorvyBot(BOT_TOKEN)
 
+# Create a command
 @bot.command()
 async def hello(message: Message):
     return f"Hello, {message.user.username}! How are you today?"
+
+# Create an event to catch potential exceptions
+@bot.event("on_command_exception")
+async def on_exc(command: str, message: Message, exception: Exception):
+    await bot.send_message(message.flock_id, message.nest_id, f"The command {command} errored out! ({exception})")
 
 # Start the bot
 if __name__ == "__main__":

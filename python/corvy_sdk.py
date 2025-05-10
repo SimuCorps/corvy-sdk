@@ -1,6 +1,7 @@
 # CorvyBot SDK - v1.3.0
 # Client library for building Corvy bots
 
+import types
 import aiohttp
 import traceback
 import json
@@ -9,7 +10,35 @@ import sys
 import asyncio
 from dataclasses import dataclass
 from datetime import datetime
-from typing import List, Dict, Callable, Any, Optional, Union
+from typing import Awaitable, List, Dict, Callable, Any, Optional, Union, get_origin, get_args, Generic, TypeVar
+import shlex
+import inspect
+
+__all__ = ["Greedy", "MessageUser", "Message", "CorvyBot"]
+
+T = TypeVar("T")
+
+class Greedy(Generic[T]):
+    """Marker for greedy consumption of tokens."""
+    pass
+
+def cast_type(typ: type, raw: str) -> Any:
+    if typ is str:
+        return raw
+    if typ is int:
+        return int(raw)
+    if typ is float:
+        return float(raw)
+    if typ is bool:
+        return raw.lower() in ("1", "true", "yes", "y", "t")
+    raise ValueError(f"Unsupported type: {typ!r}")
+
+def is_union_type(ann):
+    """"""
+    return (
+        get_origin(ann) is Union
+        or isinstance(ann, types.UnionType)  # for Python 3.10's X|Y
+    )
 
 @dataclass
 class MessageUser:
@@ -53,7 +82,8 @@ class CorvyBot:
             'Content-Type': 'application/json'
         }
         self.client_session: aiohttp.ClientSession | None = None
-
+        self.events: dict[str, list[Awaitable]] = {}
+        
         # Setup signal handler for graceful shutdown
         signal.signal(signal.SIGINT, self._handle_shutdown_stub)
     
@@ -63,8 +93,24 @@ class CorvyBot:
         Args:
             prefix: The prefix of the command. Defaults to the name of the function with the global prefix beforehand."""
             
-        def _decorator_inst(func: Callable):
+        def _decorator_inst(func: Awaitable):
             self.commands[prefix or f"{self.global_prefix}{getattr(func, '__name__', None)}"] = func
+            return func # We don't wrap the function itself yet
+        
+        return _decorator_inst
+    
+    def event(self, event: str | None = None):
+        """Register an event.
+        
+        Args:
+            event: The event to register to. Defaults to the name of the function."""
+        
+        def _decorator_inst(func: Awaitable):
+            event_name = event or getattr(func, '__name__', None)
+            # If the event key doesn't yet exist, create it
+            if not self.events.get(event_name, False):
+                self.events[event_name] = []
+            self.events[event_name].append(func)
             return func # We don't wrap the function itself
         
         return _decorator_inst
@@ -128,6 +174,10 @@ class CorvyBot:
                                           datetime.strptime(message["created_at"], "%Y-%m-%dT%H:%M:%SZ"), 
                                           MessageUser(message["user"]["id"], message["user"]["username"], message["user"]["is_bot"]))
                         
+                        # Run on_message_raw events
+                        events = self.events.get("on_message_raw", [])
+                        for event in events:
+                            await event(message)
                         # Skip bot messages
                         if message.user.is_bot:
                             continue
@@ -135,7 +185,14 @@ class CorvyBot:
                         print(f"Message from {message.user.username} in {message.flock_name}/{message.nest_name}: {message.content}")
 
                         # Check for commands
-                        await self._handle_command(message)
+                        was_command = await self._handle_command(message)
+                        # If it was a command, skip
+                        if was_command:
+                            continue
+                        # Run on_message events
+                        events = self.events.get("on_message", [])
+                        for event in events:
+                            await event(message)
                 
                 # Wait before checking again
                 await asyncio.sleep(1)
@@ -145,7 +202,7 @@ class CorvyBot:
                 traceback.print_exc()
                 await asyncio.sleep(5)  # Longer delay on error
     
-    async def _handle_command(self, message: Message):
+    async def _handle_command(self, message: Message) -> bool:
         """
         Handle command messages
         
@@ -158,15 +215,23 @@ class CorvyBot:
             if message_content.startswith(prefix.lower()):
                 print(f"Command detected: {prefix}")
                 
-                # Generate response using the command handler
-                response_content = await handler(message)
-                
+                # Generate response using the command handler, if we don't get an error
+                try:
+                    response_content = await handler(message)
+                except Exception as e:
+                    events = self.events.get("on_command_exception", [])
+                    for event in events:
+                        await event(prefix, message, e)
+                    return False
+                    
                 # Send the response
                 await self.send_message(message.flock_id, message.nest_id, response_content)
                 
-                # Stop after first matching command
-                break
-            
+                # Return true after first matching command
+                return True
+        # No commands were ran, so return false (we didn't run a command)
+        return False
+        
     async def send_message(self, flock_id: Union[str, int], nest_id: Union[str, int], content: str):
         """
         Send a message
@@ -180,7 +245,7 @@ class CorvyBot:
             print(f'Sending message: "{content}"')
             
             async with self.client_session.post(f"{self.api_path}/flocks/{flock_id}/nests/{nest_id}/messages", json={'content': content}) as response:
-                pass
+                response.raise_for_status()
                 
         except Exception as e:
             print(f"Failed to send message: {str(e)}")
