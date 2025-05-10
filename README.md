@@ -110,29 +110,19 @@ pip install -e .
 ```python
 from corvy_sdk import CorvyBot
 
-# Replace with your bot token and API base URL
+# Replace this value with your actual bot token
 BOT_TOKEN = 'your_bot_token_here'
-API_URL = 'https://corvy.chat/api/v1'
 
-# Define commands that the bot will respond to
-def hello_handler(message):
-    return f"Hello, {message['user']['username']}!"
+# Create the bot
+bot = CorvyBot(BOT_TOKEN)
 
-commands = [
-    {
-        'prefix': '!hello',
-        'handler': hello_handler
-    }
-]
+@bot.command()
+def hello(message):
+    return f"Hello, {message['user']['username']}! How are you today?"
 
-# Create and start the bot
-bot = CorvyBot({
-    'apiToken': BOT_TOKEN,
-    'apiBaseUrl': API_URL,
-    'commands': commands
-})
-
-bot.start()
+# Start the bot
+if __name__ == "__main__":
+    bot.start() 
 ```
 
 ### Example Bot
