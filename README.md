@@ -108,7 +108,7 @@ pip install -e .
 ### Usage
 
 ```python
-from corvy_sdk import CorvyBot
+from corvy_sdk import CorvyBot, Message
 
 # Replace this value with your actual bot token
 BOT_TOKEN = 'your_bot_token_here'
@@ -117,7 +117,7 @@ BOT_TOKEN = 'your_bot_token_here'
 bot = CorvyBot(BOT_TOKEN)
 
 @bot.command()
-async def hello(message):
+async def hello(message: Message):
     return f"Hello, {message['user']['username']}! How are you today?"
 
 # Start the bot
