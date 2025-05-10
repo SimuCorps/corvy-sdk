@@ -1,4 +1,4 @@
-# CorvyBot SDK - v1.3.0
+# CorvyBot SDK - v1.4.0
 # Client library for building Corvy bots
 
 import types
