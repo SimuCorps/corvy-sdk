@@ -2,7 +2,8 @@
 # CorvyBot Example - Echo Bot
 # This bot echoes back any message that includes the command prefix.
 
-from corvy_sdk import CorvyBot, Message
+from typing import Annotated
+from corvy_sdk import CorvyBot, Greedy, Message
 
 # Replace this value with your actual bot token
 BOT_TOKEN = 'your_bot_token_here'
@@ -11,19 +12,16 @@ BOT_TOKEN = 'your_bot_token_here'
 bot = CorvyBot(BOT_TOKEN)
 
 @bot.command() # Mark the function as a command
-async def echo(message: Message):
-    # Extract the content after the command
-    command_pos = message.content.lower().find('!echo')
-    if command_pos != -1:
-        content = message.content[command_pos + 5:].strip()
-        return "Echo: " + content if content else "You said nothing!"
-    return "Echo command not found"
+async def echo(message: Message, echo_string: Annotated[str, Greedy]): # We annotate the string as Greedy so that we get the entire text after the command
+    if echo_string == "": # The greedy string got nothing 
+        return "You said nothing!"
+    return "Echo: " + echo_string
 
 @bot.command()
 async def hello(message: Message):
-    return f"Hello, {message['user']['username']}! How are you today?"
+    return f"Hello, {message.user.username}! How are you today?"
 
-@bot.command()
+@bot.command() 
 async def help(_message: Message):
     return "Available commands: !echo [text], !hello, !help"
 
