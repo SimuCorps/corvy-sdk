@@ -27,6 +27,11 @@ async def hello(message: Message):
 async def help(_message: Message):
     return "Available commands: !echo [text], !hello, !help"
 
+# Create an event to catch potential exceptions
+@bot.event("on_command_exception")
+async def on_exc(command: str, message: Message, exception: Exception):
+    await bot.send_message(message.flock_id, message.nest_id, f"The command {command} errored out! ({exception})")
+
 # Start the bot
 if __name__ == "__main__":
     print('Starting echo bot...')
