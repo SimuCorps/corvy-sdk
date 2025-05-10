@@ -4,7 +4,7 @@
 
 from corvy_sdk import CorvyBot
 
-# Replace this values with your actual bot token
+# Replace this value with your actual bot token
 BOT_TOKEN = 'your_bot_token_here'
 
 # Create the bot, so we can attach commands to it
