@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="corvy-sdk",
-    version="1.1.0",
+    version="1.2.0",
     description="Client SDK for building Corvy bots",
     author="SimuCorps Team",
     author_email="contact@simucorps.org",
@@ -13,13 +13,14 @@ setup(
         "Intended Audience :: Developers",
         "License :: OSI Approved :: MIT License",
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.6",
-        "Programming Language :: Python :: 3.7",
-        "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
+        "Programming Language :: Python :: 3.13",
     ],
-    python_requires=">=3.6",
+    python_requires=">=3.9",
     install_requires=[
-        "requests>=2.25.0",
+        "aiohttp>=3.11.0",
     ],
 ) 

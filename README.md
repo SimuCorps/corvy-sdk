@@ -117,7 +117,7 @@ BOT_TOKEN = 'your_bot_token_here'
 bot = CorvyBot(BOT_TOKEN)
 
 @bot.command()
-def hello(message):
+async def hello(message):
     return f"Hello, {message['user']['username']}! How are you today?"
 
 # Start the bot

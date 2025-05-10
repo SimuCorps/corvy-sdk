@@ -11,7 +11,7 @@ BOT_TOKEN = 'your_bot_token_here'
 bot = CorvyBot(BOT_TOKEN)
 
 @bot.command() # Mark the function as a command
-def echo(message):
+async def echo(message):
     # Extract the content after the command
     command_pos = message['content'].lower().find('!echo')
     if command_pos != -1:
@@ -20,11 +20,11 @@ def echo(message):
     return "Echo command not found"
 
 @bot.command()
-def hello(message):
+async def hello(message):
     return f"Hello, {message['user']['username']}! How are you today?"
 
 @bot.command()
-def help(_):
+async def help(_):
     return "Available commands: !echo [text], !hello, !help"
 
 # Start the bot
