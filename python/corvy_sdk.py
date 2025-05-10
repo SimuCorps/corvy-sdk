@@ -1,4 +1,4 @@
-# CorvyBot SDK - v2.0.0
+# CorvyBot SDK - v1.2.0
 # Client library for building Corvy bots
 
 import aiohttp
