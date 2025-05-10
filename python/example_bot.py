@@ -4,12 +4,14 @@
 
 from corvy_sdk import CorvyBot
 
-# Replace these values with your actual bot token and API URL
+# Replace this value with your actual bot token
 BOT_TOKEN = 'your_bot_token_here'
-API_URL = 'https://corvy.chat/api/v1'
 
-# Helper function to handle the echo command
-def handle_echo(message):
+# Create the bot, so we can attach commands to it
+bot = CorvyBot(BOT_TOKEN)
+
+@bot.command() # Mark the function as a command
+def echo(message):
     # Extract the content after the command
     command_pos = message['content'].lower().find('!echo')
     if command_pos != -1:
@@ -17,37 +19,15 @@ def handle_echo(message):
         return "Echo: " + content if content else "You said nothing!"
     return "Echo command not found"
 
-# Helper function to handle the hello command
-def handle_hello(message):
+@bot.command()
+def hello(message):
     return f"Hello, {message['user']['username']}! How are you today?"
 
-# Helper function to handle the help command
-def handle_help(_):
+@bot.command()
+def help(_):
     return "Available commands: !echo [text], !hello, !help"
 
-# Define commands that the bot will respond to
-commands = [
-    {
-        'prefix': '!echo',
-        'handler': handle_echo
-    },
-    {
-        'prefix': '!hello',
-        'handler': handle_hello
-    },
-    {
-        'prefix': '!help',
-        'handler': handle_help
-    }
-]
-
-# Create and start the bot
-bot = CorvyBot({
-    'apiToken': BOT_TOKEN,
-    'apiBaseUrl': API_URL,
-    'commands': commands
-})
-
+# Start the bot
 if __name__ == "__main__":
     print('Starting echo bot...')
     bot.start() 
