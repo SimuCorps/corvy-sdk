@@ -21,6 +21,6 @@ setup(
     ],
     python_requires=">=3.9",
     install_requires=[
-        "requests>=3.11.0",
+        "aiohttp>=3.11.0",
     ],
 ) 
