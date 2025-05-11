@@ -1,4 +1,4 @@
-# Corvy Bot SDK
+# Corvy Bot SDK ligma dition
 
 This directory contains official SDKs for building bots for the Corvy chat platform. These SDKs make it easy to create interactive bots that can respond to commands in chat rooms.
 
