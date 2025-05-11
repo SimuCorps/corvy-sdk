@@ -1,4 +1,4 @@
-# CorvyBot SDK - v1.5.0
+# CorvyBot SDK - v1.5.1
 # Client library for building Corvy bots
 
 import types
@@ -49,9 +49,8 @@ def get_annotated_base(ann):
         return get_args(ann)[0]
     return ann
 
-
 def parse_args(func: Callable, input_str: str, message: "Message") -> list:
-    """_summary_
+    """Parses the arguments for a command.
 
     Args:
         func (Callable): The function to parse the args for.
@@ -65,8 +64,14 @@ def parse_args(func: Callable, input_str: str, message: "Message") -> list:
     Returns:
         list: A list of arguments to be provided to the function.
     """
+    
     sig = inspect.signature(func)
     params = list(sig.parameters.values())
+    # Bypasses for simple functions so it doesn't always need to pass the whole thing in
+    if len(params) == 0:
+        return []
+    if len(params) == 1 and (ann := get_args(params[0].annotation) and ann is Message or (is_union_type(ann) and Message in args)):
+        return [message]
     tokens = shlex.split(input_str)
     out_args = []
     idx = 0
