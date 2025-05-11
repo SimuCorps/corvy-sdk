@@ -1,6 +1,6 @@
 Gem::Specification.new do |spec|
   spec.name          = "corvy_sdk"
-  spec.version       = "1.0.0"
+  spec.version       = "1.5.1"
   spec.authors       = ["SimuCorps Team"]
   spec.email         = ["contact@simucorps.org"]
 

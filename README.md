@@ -60,7 +60,7 @@ cd ruby
 bundle install
 # Or install the gem directly
 gem build corvy_sdk.gemspec
-gem install corvy_sdk-1.0.0.gem
+gem install corvy_sdk-1.5.1.gem
 ```
 
 ### Usage
@@ -68,28 +68,57 @@ gem install corvy_sdk-1.0.0.gem
 ```ruby
 require_relative 'corvy_sdk'
 
-# Replace with your bot token and API base URL
+# Replace with your bot token
 BOT_TOKEN = 'your_bot_token_here'
-API_URL = 'https://corvy.chat/api/v1'
 
-# Define commands that the bot will respond to
-commands = [
-  {
-    prefix: '!hello',
-    handler: lambda do |message|
-      "Hello, #{message['user']['username']}!"
-    end
-  }
-]
+# Create the bot instance
+bot = CorvyBot.new(BOT_TOKEN)
 
-# Create and start the bot
-bot = CorvyBot.new({
-  apiToken: BOT_TOKEN,
-  apiBaseUrl: API_URL,
-  commands: commands
-})
+# Define commands using the decorator pattern
+hello_command = bot.command()
+hello_command.call(
+  define_method(:hello) do |message|
+    "Hello, #{message.user.username}!"
+  end
+)
 
+# Register an event handler
+message_event = bot.event("on_message")
+message_event.call(
+  define_method(:handle_message) do |message|
+    puts "Received: #{message.content}"
+  end
+)
+
+# Start the bot
 bot.start
+```
+
+### Command Parameters and Types
+
+The Ruby SDK now supports advanced parameter parsing:
+
+```ruby
+# Command with parameter support
+echo_command = bot.command()
+echo_command.call(
+  define_method(:echo) do |message, echo_string = ""|
+    if echo_string.empty?
+      "You said nothing!"
+    else
+      "Echo: #{echo_string}"
+    end
+  end
+)
+
+# Exception handling with events
+command_exception_event = bot.event("on_command_exception")
+command_exception_event.call(
+  define_method(:on_exc) do |command, message, exception|
+    bot.send_message(message.flock_id, message.nest_id, 
+      "Error in command #{command}: #{exception}")
+  end
+)
 ```
 
 ### Example Bot
