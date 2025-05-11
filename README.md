@@ -150,14 +150,42 @@ bot = CorvyBot(BOT_TOKEN)
 async def hello(message: Message):
     return f"Hello, {message.user.username}! How are you today?"
 
+# Start the bot
+if __name__ == "__main__":
+    bot.start() 
+```
+
+### Command Parameters and Types
+
+Similarly to the Ruby SDK, the Python SDK supports automatic parameter passing:
+
+```python
+from corvy_sdk import CorvyBot, Greedy
+from typing import Annotated
+
+@bot.command() # Mark the function as a command
+async def echo(message: Message, echo_string: Annotated[str, Greedy]): 
+                                 # We annotate the string as Greedy so that we get the entire text after the command. If we don't, it'll only get one word.
+    if echo_string == "": # The greedy string got nothing 
+        return "You said nothing!"
+    return "Echo: " + echo_string
+```
+
+### Events
+
+The Python SDK also supports three events:
+- `on_message_raw` - triggers on every message, before commands are called. 
+  - Has one parameter (a Message).
+- `on_message` - triggers on messages that weren't ran as commands. 
+  - Has one parameter (a Message).
+- `on_command_exception` - triggers if a command errors out, or if automatic parameters fail to parse; failures can occur due to them being invalid or the user failing to put in all of them.
+  - Has three parameters (the command called as a string, a Message object, and the Exception object).
+
+```python
 # Create an event to catch potential exceptions
 @bot.event("on_command_exception")
 async def on_exc(command: str, message: Message, exception: Exception):
     await bot.send_message(message.flock_id, message.nest_id, f"The command {command} errored out! ({exception})")
-
-# Start the bot
-if __name__ == "__main__":
-    bot.start() 
 ```
 
 ### Example Bot
