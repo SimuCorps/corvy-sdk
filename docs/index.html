@@ -7,9 +7,11 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div class="container">
+  <div class="header">
     <h1>Corvy Bot SDK</h1>
-    
+  </div>
+  
+  <div class="container">
     <p>
       Welcome to the Corvy Bot SDK documentation. These SDKs make it easy to create interactive bots
       that can respond to commands in Corvy chat rooms.
@@ -21,22 +23,22 @@
     
     <h2>Available SDKs</h2>
     
-    <ul>
-      <li><a href="#javascript">JavaScript SDK</a></li>
-      <li><a href="#ruby">Ruby SDK</a></li>
-      <li><a href="#python">Python SDK</a></li>
-    </ul>
+    <div class="tabs">
+      <button class="tab-button active" onclick="openTab(event, 'javascript')">JavaScript</button>
+      <button class="tab-button" onclick="openTab(event, 'ruby')">Ruby</button>
+      <button class="tab-button" onclick="openTab(event, 'python')">Python</button>
+    </div>
     
-    <h2 id="javascript">JavaScript SDK</h2>
-    
-    <h3>Installation</h3>
-    
-    <pre><code>cd javascript
+    <!-- JavaScript SDK Tab -->
+    <div id="javascript" class="tab-content active">
+      <h3>Installation</h3>
+      
+      <pre><code>cd javascript
 npm install</code></pre>
-    
-    <h3>Usage</h3>
-    
-    <pre><code>const CorvyBot = require('./corvy-sdk');
+      
+      <h3>Usage</h3>
+      
+      <pre><code>const CorvyBot = require('./corvy-sdk');
 
 // Replace with your bot token and API base URL
 const BOT_TOKEN = 'your_bot_token_here';
@@ -60,115 +62,178 @@ const bot = new CorvyBot({
 });
 
 bot.start();</code></pre>
+      
+      <h3>Example Bot</h3>
+      
+      <p>See <code>javascript/example-bot.js</code> for a complete example bot.</p>
+    </div>
     
-    <h3>Example Bot</h3>
-    
-    <p>See <code>javascript/example-bot.js</code> for a complete example bot.</p>
-    
-    <h2 id="ruby">Ruby SDK</h2>
-    
-    <h3>Installation</h3>
-    
-    <pre><code>cd ruby
+    <!-- Ruby SDK Tab -->
+    <div id="ruby" class="tab-content">
+      <h3>Installation</h3>
+      
+      <pre><code>cd ruby
 # If you're using Bundler
 bundle install
 # Or install the gem directly
 gem build corvy_sdk.gemspec
-gem install corvy_sdk-1.0.0.gem</code></pre>
-    
-    <h3>Usage</h3>
-    
-    <pre><code>require_relative 'corvy_sdk'
+gem install corvy_sdk-1.5.1.gem</code></pre>
+      
+      <h3>Usage</h3>
+      
+      <pre><code>require_relative 'corvy_sdk'
 
-# Replace with your bot token and API base URL
+# Replace with your bot token
 BOT_TOKEN = 'your_bot_token_here'
-API_URL = 'https://corvy.chat/api/v1'
 
-# Define commands that the bot will respond to
-commands = [
-  {
-    prefix: '!hello',
-    handler: lambda do |message|
-      "Hello, #{message['user']['username']}!"
-    end
-  }
-]
+# Create the bot instance
+bot = CorvyBot.new(BOT_TOKEN)
 
-# Create and start the bot
-bot = CorvyBot.new({
-  apiToken: BOT_TOKEN,
-  apiBaseUrl: API_URL,
-  commands: commands
-})
+# Define commands using the decorator pattern
+hello_command = bot.command()
+hello_command.call(
+  define_method(:hello) do |message|
+    "Hello, #{message.user.username}!"
+  end
+)
 
+# Register an event handler
+message_event = bot.event("on_message")
+message_event.call(
+  define_method(:handle_message) do |message|
+    puts "Received: #{message.content}"
+  end
+)
+
+# Start the bot
 bot.start</code></pre>
+      
+      <h3>Command Parameters and Types</h3>
+      
+      <p>The Ruby SDK now supports advanced parameter parsing:</p>
+      
+      <pre><code># Command with parameter support
+echo_command = bot.command()
+echo_command.call(
+  define_method(:echo) do |message, echo_string = ""|
+    if echo_string.empty?
+      "You said nothing!"
+    else
+      "Echo: #{echo_string}"
+    end
+  end
+)
+
+# Exception handling with events
+command_exception_event = bot.event("on_command_exception")
+command_exception_event.call(
+  define_method(:on_exc) do |command, message, exception|
+    bot.send_message(message.flock_id, message.nest_id, 
+      "Error in command #{command}: #{exception}")
+  end
+)</code></pre>
+      
+      <h3>Example Bot</h3>
+      
+      <p>See <code>ruby/example_bot.rb</code> for a complete example bot.</p>
+    </div>
     
-    <h3>Example Bot</h3>
-    
-    <p>See <code>ruby/example_bot.rb</code> for a complete example bot.</p>
-    
-    <h2 id="python">Python SDK</h2>
-    
-    <h3>Installation</h3>
-    
-    <pre><code>cd python
+    <!-- Python SDK Tab -->
+    <div id="python" class="tab-content">
+      <h3>Installation</h3>
+      
+      <pre><code>cd python
 pip install -e .</code></pre>
-    
-    <h3>Usage</h3>
-    
-    <pre><code>from corvy_sdk import CorvyBot
+      
+      <h3>Usage</h3>
+      
+      <pre><code>from corvy_sdk import CorvyBot, Message
 
-# Replace with your bot token and API base URL
+# Replace this value with your actual bot token
 BOT_TOKEN = 'your_bot_token_here'
-API_URL = 'https://corvy.chat/api/v1'
 
-# Define commands that the bot will respond to
-def hello_handler(message):
-    return f"Hello, {message['user']['username']}!"
+# Create the bot
+bot = CorvyBot(BOT_TOKEN)
 
-commands = [
-    {
-        'prefix': '!hello',
-        'handler': hello_handler
-    }
-]
+# Create a command
+@bot.command()
+async def hello(message: Message):
+    return f"Hello, {message.user.username}! How are you today?"
 
-# Create and start the bot
-bot = CorvyBot({
-    'apiToken': BOT_TOKEN,
-    'apiBaseUrl': API_URL,
-    'commands': commands
-})
+# Create an event to catch potential exceptions
+@bot.event("on_command_exception")
+async def on_exc(command: str, message: Message, exception: Exception):
+    await bot.send_message(message.flock_id, message.nest_id, 
+                          f"The command {command} errored out! ({exception})")</code></pre>
 
-bot.start()</code></pre>
+      <h3>Advanced Arguments</h3>
+      
+      <pre><code>from typing import Annotated
+from corvy_sdk import CorvyBot, Greedy, Message
+
+@bot.command() 
+async def echo(message: Message, echo_string: Annotated[str, Greedy]):
+    if echo_string == "":
+        return "You said nothing!"
+    return "Echo: " + echo_string</code></pre>
+      
+      <h3>Example Bot</h3>
+      
+      <p>See <code>python/example_bot.py</code> for a complete example bot.</p>
+    </div>
     
-    <h3>Example Bot</h3>
+    <div class="api-section">
+      <h2>API Documentation</h2>
+      
+      <p>All SDKs interact with the Corvy API via the following endpoints:</p>
+      
+      <ul>
+        <li><code>POST /auth</code> - Authenticate the bot</li>
+        <li><code>GET /messages</code> - Get new messages (with cursor)</li>
+        <li><code>POST /flocks/:flock_id/nests/:nest_id/messages</code> - Send a response message</li>
+      </ul>
+    </div>
     
-    <p>See <code>python/example_bot.py</code> for a complete example bot.</p>
+    <div class="testing-section">
+      <h2>Testing Your Bot</h2>
+      
+      <ol>
+        <li>Create a bot in the Corvy developer portal</li>
+        <li>Get the bot's API token</li>
+        <li>Replace the placeholder token in the example code</li>
+        <li>Run your bot</li>
+        <li>Send messages in a chat room where the bot is present</li>
+      </ol>
+    </div>
     
-    <h2>API Documentation</h2>
-    
-    <p>All SDKs interact with the Corvy API via the following endpoints:</p>
-    
-    <ul>
-      <li><code>POST /auth</code> - Authenticate the bot</li>
-      <li><code>GET /messages</code> - Get new messages (with cursor)</li>
-      <li><code>POST /flocks/:flock_id/nests/:nest_id/messages</code> - Send a response message</li>
-    </ul>
-    
-    <h2>Testing Your Bot</h2>
-    
-    <ol>
-      <li>Create a bot in the Corvy developer portal</li>
-      <li>Get the bot's API token</li>
-      <li>Replace the placeholder token in the example code</li>
-      <li>Run your bot</li>
-      <li>Send messages in a chat room where the bot is present</li>
-    </ol>
-    
-    <h2>Getting Help</h2>
-    
-    <p>For more information or assistance, please contact the Corvy development team.</p>
+    <div class="footer">
+      <h2>Getting Help</h2>
+      <p>For more information or assistance, please contact the Corvy development team or a member of SimuCorps directly.</p>
+      <p>&copy; 2025 SimuCorps LLC</p>
+    </div>
   </div>
+
+  <script>
+    function openTab(evt, tabName) {
+      // Declare variables
+      var i, tabContent, tabButtons;
+      
+      // Get all elements with class="tab-content" and hide them
+      tabContent = document.getElementsByClassName("tab-content");
+      for (i = 0; i < tabContent.length; i++) {
+        tabContent[i].classList.remove("active");
+      }
+      
+      // Get all elements with class="tab-button" and remove the class "active"
+      tabButtons = document.getElementsByClassName("tab-button");
+      for (i = 0; i < tabButtons.length; i++) {
+        tabButtons[i].classList.remove("active");
+      }
+      
+      // Show the current tab, and add an "active" class to the button that opened the tab
+      document.getElementById(tabName).classList.add("active");
+      evt.currentTarget.classList.add("active");
+    }
+  </script>
 </body>
 </html> 
