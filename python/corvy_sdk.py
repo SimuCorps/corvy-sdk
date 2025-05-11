@@ -70,8 +70,10 @@ def parse_args(func: Callable, input_str: str, message: "Message") -> list:
     # Bypasses for simple functions so it doesn't always need to pass the whole thing in
     if len(params) == 0:
         return []
-    if len(params) == 1 and (ann := get_args(params[0].annotation) and ann is Message or (is_union_type(ann) and Message in args)):
-        return [message]
+    if len(params) == 1:
+        ann = get_args(params[0].annotation)
+        if ann is Message or (is_union_type(ann) and Message in args):
+            return [message]
     tokens = shlex.split(input_str)
     out_args = []
     idx = 0
