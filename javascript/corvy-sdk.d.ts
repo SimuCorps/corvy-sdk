@@ -50,7 +50,7 @@ export class Client extends EventEmitter {
      * 
      * @param {Object} options - Bot configuration
      * @param {string} options.token - Authentication token
-     * @param {string} [options.globalPrefix=";"] - Global command prefix (default is ";")
+     * @param {string} [options.prefix=";"] - Global command prefix (default is ";")
      * @param {boolean} options.devMode - Enables more detailed logging
      */
     constructor(options: ClientOptions);
