@@ -173,11 +173,15 @@ async def echo(message: Message, echo_string: Annotated[str, Greedy]):
 
 ### Events
 
-The Python SDK also supports three events:
+The Python SDK also supports five events:
 - `on_message_raw` - triggers on every message, before commands are called. 
   - Has one parameter (a Message).
 - `on_message` - triggers on messages that weren't ran as commands. 
   - Has one parameter (a Message).
+- `prestart` - triggers before any of the bot is configured.
+  - Has one parameter (the CorvyBot).
+- `start` - triggers before the message loop begins.
+  - Has one parameter (the CorvyBot).
 - `on_command_exception` - triggers if a command errors out, or if automatic parameters fail to parse; failures can occur due to them being invalid or the user failing to put in all of them.
   - Has three parameters (the command called as a string, a Message object, and the Exception object).
 
