@@ -2,7 +2,7 @@
   "name": "corvy-sdk",
   "version": "1.0.0",
   "description": "Client SDK for building Corvy bots",
-  "main": "docs/simple-bot.js",
+  "main": "sdk/corvy.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
