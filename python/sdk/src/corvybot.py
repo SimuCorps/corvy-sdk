@@ -1,148 +1,16 @@
-# CorvyBot SDK - v1.6
-# Client library for building Corvy bots
-
-import types
-import aiohttp
-import traceback
-import json
+import asyncio
+from datetime import datetime
 import signal
 import sys
-import asyncio
-from dataclasses import dataclass
-from datetime import datetime
-from typing import Annotated, Awaitable, List, Dict, Callable, Any, Optional, Union, get_origin, get_args, Generic, TypeVar
-import shlex
-import inspect
+import traceback
+from typing import Awaitable, Callable, Union
+import logging
+import aiohttp
+from .messages import Message, MessageUser
+from .command_parsing import parse_args
+from .default_logger import get_pretty_logger
 
-__all__ = ["Greedy", "MessageUser", "Message", "CorvyBot"]
-
-class Greedy:
-    """Marker type for Annotated[..., Greedy]"""
-    pass
-
-def cast_type(typ: type, raw: str) -> Any:
-    if typ is str:
-        return raw
-    if typ is int:
-        return int(raw)
-    if typ is float:
-        return float(raw)
-    if typ is bool:
-        return raw.lower() in ("1", "true", "yes", "y", "t")
-    raise ValueError(f"Unsupported type: {typ!r}")
-
-def is_union_type(ann):
-    """"""
-    return (
-        get_origin(ann) is Union
-        or isinstance(ann, types.UnionType)  # for Python 3.10+'s X|Y
-    )
-
-def is_annotated_greedy(ann):
-    if get_origin(ann) is Annotated:
-        _, *annotations = get_args(ann)
-        return any(isinstance(a, Greedy) or a is Greedy for a in annotations)
-    return False
-
-def get_annotated_base(ann):
-    if get_origin(ann) is Annotated:
-        return get_args(ann)[0]
-    return ann
-
-def parse_args(func: Callable, input_str: str, message: "Message") -> list:
-    """Parses the arguments for a command.
-
-    Args:
-        func (Callable): The function to parse the args for.
-        input_str (str): The list of arguments in string form, e.g. "1 2 3".
-        message (Message): A message object.
-
-    Raises:
-        SyntaxError: If two message parameters are requested.
-        ValueError: If a required parameter is not defined.
-
-    Returns:
-        list: A list of arguments to be provided to the function.
-    """
-    
-    sig = inspect.signature(func)
-    params = list(sig.parameters.values())
-    # Bypasses for simple functions so it doesn't always need to pass the whole thing in
-    if len(params) == 0:
-        return []
-    if len(params) == 1:
-        ann = get_args(params[0].annotation)
-        if ann is Message or (is_union_type(ann) and Message in args):
-            return [message]
-    tokens = shlex.split(input_str)
-    out_args = []
-    idx = 0
-    message_injected = False
-
-    for p_i, param in enumerate(params):
-        ann = param.annotation
-        origin = get_origin(ann)
-        args = get_args(ann)
-
-        if ann is Message or (is_union_type(ann) and Message in args):
-            if message_injected:
-                # Second message not allowed unless it's optional [in which case we just give None instead]
-                if origin is Union and type(None) in args:
-                    out_args.append(None)
-                    continue
-                raise SyntaxError(f"Multiple Message parameters not allowed: {param.name}")
-            out_args.append(message)
-            message_injected = True
-            continue
-
-        if is_annotated_greedy(ann):
-            base_type = get_annotated_base(ann)
-            needed_for_rest = len(params) - (p_i + 1)
-            take = max(0, len(tokens) - idx - needed_for_rest)
-            raw = " ".join(tokens[idx: idx + take])
-            idx += take
-            out_args.append(cast_type(base_type, raw))
-            continue
-
-        if idx >= len(tokens):
-            if param.default is not inspect.Parameter.empty:
-                out_args.append(param.default)
-                continue
-            if is_union_type(ann) and type(None) in args:
-                out_args.append(None)
-                continue
-            raise ValueError(f"Missing value for parameter '{param.name}'")
-
-        raw = tokens[idx]
-        idx += 1
-
-        if is_union_type(ann) and type(None) in args:
-            if raw.lower() == "none":
-                out_args.append(None)
-            else:
-                non_none = next(t for t in args if t is not type(None))
-                out_args.append(cast_type(non_none, raw))
-        else:
-            out_args.append(cast_type(ann, raw))
-
-    return out_args
-
-@dataclass
-class MessageUser:
-    id: int
-    username: str
-    is_bot: bool
-    
-@dataclass
-class Message:
-    id: int
-    content: str
-    flock_name: str
-    flock_id: int
-    nest_name: str
-    nest_id: int
-    created_at: datetime
-    user: MessageUser
+logger = get_pretty_logger("corvy_sdk")
 
 class CorvyBot:
     """
@@ -203,60 +71,59 @@ class CorvyBot:
         return _decorator_inst
     
     def start(self):
+        logging.basicConfig()
         """Start the bot and begin processing messages"""
         try:
             loop = asyncio.new_event_loop()
             loop.run_until_complete(self._start_async())    
         except Exception as e:
-            print(f"Failed to start bot loop: {str(e)}")
+            logger.exception(f"Failed to start bot loop: {str(e)}")
     
     async def _start_async(self):
         """Start the bot, but in an async context."""
         try:
-            print("Running prestart events...")
+            logger.debug("Running prestart events...")
             
             # Run prestart events
             events = self.events.get("prestart", [])
             for event in events:
                 await event(self)
 
-            print("Starting bot...")
+            logger.debug("Starting bot...")
             
             self.client_session = aiohttp.ClientSession(self.api_base_url, headers=self.headers)
             
             async with self.client_session.post(f"{self.api_path}/auth") as response:
                 response_data = await response.json()
-                print(f"Bot authenticated: {response_data['bot']['name']}")
+                logger.info(f"Bot authenticated: {response_data['bot']['name']}")
         
             # Establish baseline (gets highest message ID but no messages)
-            print("Establishing baseline with server...")
+            logger.debug("Establishing baseline with server...")
             
             async with self.client_session.get(f"{self.api_path}/messages", params={'cursor': 0}) as response:
                 baseline_data = await response.json()
                 # Save the cursor for future requests
                 if baseline_data.get('cursor'):
                     self.current_cursor = baseline_data['cursor']
-                    print(f"Baseline established. Starting with message ID: {self.current_cursor}")
+                    logger.debug(f"Baseline established. Starting with message ID: {self.current_cursor}")
             
             # Log command prefixes
             command_prefixes = [cmd for cmd in self.commands.keys()]
-            print(f"Listening for commands: {', '.join(command_prefixes)}")
+            logger.debug(f"Listening for commands: {', '.join(command_prefixes)}")
             
-            print("Running start events...")
+            logger.debug("Running start events...")
             
             # Runstart events
             events = self.events.get("start", [])
             for event in events:
                 await event(self)
             
-            print("Running message loop...")
+            logger.debug("Running message loop...")
             
             await self._process_message_loop()
             
         except Exception as e:
-            print(f"Failed to start bot: {str(e)}")
-            traceback.print_exc()
-            sys.exit(1)
+            logger.exception(f"Failed to start bot: {str(e)}")
     
     async def _process_message_loop(self):
         """Process messages in a loop"""
@@ -285,7 +152,7 @@ class CorvyBot:
                         if message.user.is_bot:
                             continue
 
-                        print(f"Message from {message.user.username} in {message.flock_name}/{message.nest_name} ({message.flock_id}/{message.nest_id}): {message.content}")
+                        logger.debug(f"Message from {message.user.username} in {message.flock_name}/{message.nest_name} ({message.flock_id}/{message.nest_id}): {message.content}")
 
                         # Check for commands
                         was_command = await self._handle_command(message)
@@ -301,7 +168,7 @@ class CorvyBot:
                 await asyncio.sleep(1)
                 
             except Exception as e:
-                print(f"Error fetching messages: {str(e)}")
+                logger.exception(f"Error fetching messages: {str(e)}")
                 traceback.print_exc()
                 await asyncio.sleep(5)  # Longer delay on error
     
@@ -316,7 +183,7 @@ class CorvyBot:
         # Check each command prefix
         for prefix, handler in self.commands.items():
             if message_content.startswith(prefix.lower()):
-                print(f"Command detected: {prefix}")
+                logger.debug(f"Command detected: {prefix}")
                 
                 # Generate response using the command handler, if we don't get an error
                 try:
@@ -346,13 +213,13 @@ class CorvyBot:
             content: Message content
         """
         try:
-            print(f'Sending message: "{content}"')
+            logger.debug(f'Sending message: "{content}"')
             
             async with self.client_session.post(f"{self.api_path}/flocks/{flock_id}/nests/{nest_id}/messages", json={'content': content}) as response:
                 response.raise_for_status()
                 
         except Exception as e:
-            print(f"Failed to send message: {str(e)}")
+            logger.exception(f"Failed to send message: {str(e)}")
             
     def _handle_shutdown_stub(self, sig, frame):
         try:
@@ -363,7 +230,7 @@ class CorvyBot:
 
     async def _handle_shutdown(self, sig, frame):
         """Handle graceful shutdown"""
-        print("Bot shutting down...")
+        logger.info("Bot shutting down...")
         await self.client_session.close()
         try:
             asyncio.get_running_loop().stop()
