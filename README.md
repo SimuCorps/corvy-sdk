@@ -194,7 +194,7 @@ async def on_exc(command: str, message: Message, exception: Exception):
 
 ### Example Bot
 
-See `python/example_bot.py` for a complete example bot.
+See `python/docs/example_bot.py` for a complete example bot.
 
 ## API Documentation
 
