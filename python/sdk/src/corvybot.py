@@ -1,5 +1,5 @@
 import asyncio
-import datetime
+from datetime import datetime
 import signal
 import sys
 import traceback
@@ -141,7 +141,7 @@ class CorvyBot:
                         message = Message(message["id"], message["content"],
                                           message["flock_name"], message["flock_id"],
                                           message["nest_name"], message["nest_id"],
-                                          datetime.datetime.strptime(message["created_at"], "%Y-%m-%dT%H:%M:%SZ"), 
+                                          datetime.strptime(message["created_at"], "%Y-%m-%dT%H:%M:%SZ"), 
                                           MessageUser(message["user"]["id"], message["user"]["username"], message["user"]["is_bot"]))
                         
                         # Run on_message_raw events
