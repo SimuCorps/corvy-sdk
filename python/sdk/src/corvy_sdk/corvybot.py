@@ -182,7 +182,7 @@ class CorvyBot:
         message_content: str = message.content.lower()
         # Check each command prefix
         for prefix, handler in self.commands.items():
-            if message_content.startswith(prefix.lower()):
+            if message_content.startswith({prefix.lower()} + " "):
                 logger.debug(f"Command detected: {prefix}")
                 
                 # Generate response using the command handler, if we don't get an error
