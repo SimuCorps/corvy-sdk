@@ -59,6 +59,6 @@ This includes automatic parameters failimh to parse; failures can occur due to t
 ### Example
 ```python
 @bot.event("on_command_exception")
-async def on_exc(command: str, message: Message, exception: Exception):
+async def on_command_exception(command: str, message: Message, exception: Exception):
     await bot.send_message(message.flock_id, message.nest_id, f"The command {command} errored out! ({exception})")
 ```
