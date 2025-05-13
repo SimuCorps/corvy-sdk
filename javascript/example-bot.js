@@ -1,6 +1,4 @@
 import { Client } from "./corvy-sdk.js";
-import path from "path";
-import fs from "fs";
 
 const client = new Client({
     token: "your_token",
