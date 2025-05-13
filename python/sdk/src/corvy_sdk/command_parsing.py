@@ -5,7 +5,6 @@ import types
 from typing import Annotated, Any, Callable, Union, get_args, get_origin
 from .messages import Message
 
-
 def simple_tokenize(text: str) -> list[str]:
     tokens = []
     current = []
