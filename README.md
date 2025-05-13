@@ -45,9 +45,9 @@ client.login();
 
 ### Example Bot
 
-See `javascript/example-bot.js` for a complete example bot.
+See `javascript/docs/simple-bot.js` for a complete example bot.
 <br />
-See `javascript/command-handler-example-bot.js` for a complete command handler example bot.
+See `javascript/docs/command-handler-example` for a complete command handler example bot.
 
 ## Ruby SDK
 
