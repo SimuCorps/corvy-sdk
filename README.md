@@ -129,8 +129,7 @@ See `ruby/example_bot.rb` for a complete example bot.
 ### Installation
 
 ```bash
-cd python
-pip install -e .
+pip install corvy_sdk
 ```
 
 ### Usage
