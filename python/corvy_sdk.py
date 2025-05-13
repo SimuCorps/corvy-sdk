@@ -1,4 +1,4 @@
-# CorvyBot SDK - v1.5.1
+# CorvyBot SDK - v1.6
 # Client library for building Corvy bots
 
 import types
@@ -213,6 +213,13 @@ class CorvyBot:
     async def _start_async(self):
         """Start the bot, but in an async context."""
         try:
+            print("Running prestart events...")
+            
+            # Run prestart events
+            events = self.events.get("prestart", [])
+            for event in events:
+                await event(self)
+
             print("Starting bot...")
             
             self.client_session = aiohttp.ClientSession(self.api_base_url, headers=self.headers)
@@ -234,6 +241,15 @@ class CorvyBot:
             # Log command prefixes
             command_prefixes = [cmd for cmd in self.commands.keys()]
             print(f"Listening for commands: {', '.join(command_prefixes)}")
+            
+            print("Running start events...")
+            
+            # Runstart events
+            events = self.events.get("start", [])
+            for event in events:
+                await event(self)
+            
+            print("Running message loop...")
             
             await self._process_message_loop()
             
@@ -269,7 +285,7 @@ class CorvyBot:
                         if message.user.is_bot:
                             continue
 
-                        print(f"Message from {message.user.username} in {message.flock_name}/{message.nest_name}: {message.content}")
+                        print(f"Message from {message.user.username} in {message.flock_name}/{message.nest_name} ({message.flock_id}/{message.nest_id}): {message.content}")
 
                         # Check for commands
                         was_command = await self._handle_command(message)
