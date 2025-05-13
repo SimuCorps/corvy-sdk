@@ -1,143 +1,192 @@
-/**
- * CorvyBot SDK - v1.0.0
- * Client library for building Corvy bots
- */
+import axios from "axios";
+import EventEmitter from "events";
 
-const axios = require('axios');
-
-class CorvyBot {
-  /**
-   * Create a new bot instance
-   * @param {Object} config - Bot configuration
-   * @param {string} config.apiToken - Your bot's API token
-   * @param {string} config.apiBaseUrl - Corvy API base URL
-   * @param {Array<Object>} config.commands - Command definitions
-   */
-  constructor(config) {
-    this.config = config;
+export class Client extends EventEmitter {
+  constructor({ token, prefix = ";", devMode = false }) {
+    super();
+    this.token = token;
+    this.prefix = prefix;
     this.currentCursor = 0;
-    
-    // Create API client with authentication
-    this.api = axios.create({
-      baseURL: this.config.apiBaseUrl,
+    this.commands = new Map();
+    this.user = null;
+    this.devMode = devMode;
+    this.client = axios.create({
+      baseURL: "https://corvy.chat/api/v1",
       headers: {
-        'Authorization': `Bearer ${this.config.apiToken}`,
-        'Content-Type': 'application/json'
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json"
       }
     });
   }
+
+  // -------------------------------
+  // Utils
+  // -------------------------------
+
+  log(...args) {
+    if (this.devMode) {
+      console.log("[DEV MODE]", ...args);
+    }
+  }
   
-  /**
-   * Start the bot
-   * @returns {Promise<void>}
-   */
-  async start() {
+  // -------------------------------
+  // Command Registration
+  // -------------------------------
+
+  registerCommand(names, handler) {
+    const nameList = Array.isArray(names) ? names : [names];
+
+    for (let name of nameList) {
+      if (typeof name !== "string" || typeof handler !== "function") {
+        throw new Error("Command must be registered with a name and a function handler.");
+      }
+
+      const fullPrefix = `${this.prefix}${name}`;
+      this.commands.set(fullPrefix.toLowerCase(), async (msg, client, argsText) => {
+        try {
+          this.log(`Executing command: ${fullPrefix}`);
+          await handler(msg, client, argsText);
+        } catch (err) {
+          this.emit("commandError", fullPrefix, msg, err);
+          this.log(`Error in command "${fullPrefix}": ${err.message}`);
+        }
+      });
+
+      this.log(`Registered command: ${fullPrefix}`);
+    }
+  }
+
+  // -------------------------------
+  // Auth
+  // -------------------------------
+
+  async login() {
     try {
-      console.log('Starting bot...');
-      
-      // Authenticate first
-      const response = await this.api.post('/auth');
-      console.log(`Bot authenticated: ${response.data.bot.name}`);
-      
-      // Establish baseline (gets highest message ID but no messages)
-      console.log('Establishing baseline with server...');
-      const baselineResponse = await this.api.get('/messages', {
+
+      const res = await this.client.post("/auth");
+      this.user = res.data.bot;
+
+      this.emit("ready", this);
+
+      const baseline = await this.client.get("/messages", {
         params: { cursor: 0 }
       });
-      
-      // Save the cursor for future requests
-      this.currentCursor = baselineResponse.data.cursor;
-      console.log(`Baseline established. Starting with message ID: ${this.currentCursor}`);
-      
-      // Start processing new messages
-      console.log(`Listening for commands: ${this.config.commands.map(c => c.prefix).join(', ')}`);
-      this.processMessageLoop();
-      
-      // Set up graceful shutdown
-      process.on('SIGINT', () => {
-        console.log('Bot shutting down...');
-        setTimeout(() => process.exit(0), 1000);
-      });
-    } catch (error) {
-      console.error('Failed to start bot:', error.message);
-      if (error.response) {
-        console.error('Response:', error.response.data);
-      }
-      process.exit(1);
-    }
-  }
-  
-  /**
-   * Process messages in a loop
-   * @private
-   */
-  async processMessageLoop() {
-    try {
-      // Get new messages
-      const response = await this.api.get('/messages', {
-        params: { cursor: this.currentCursor }
-      });
-      
-      // Update cursor
-      this.currentCursor = response.data.cursor;
-      
-      // Process each new message
-      for (const message of response.data.messages) {
-        // Skip bot messages
-        if (message.user.is_bot) continue;
-        
-        console.log(`Message from ${message.user.username} in ${message.flock_name}/${message.nest_name}: ${message.content}`);
-        
-        // Check for commands
-        this.handleCommand(message);
-      }
-    } catch (error) {
-      console.error('Error fetching messages:', error.message);
-    } finally {
-      // Always schedule the next check, even after errors
-      setTimeout(() => this.processMessageLoop(), 1000);
-    }
-  }
-  
-  /**
-   * Handle command messages
-   * @param {Object} message - Message object
-   * @private
-   */
-  handleCommand(message) {
-    // Check each command prefix
-    for (const command of this.config.commands) {
-      if (message.content.toLowerCase().includes(command.prefix.toLowerCase())) {
-        console.log(`Command detected: ${command.prefix}`);
-        
-        // Generate response using the command handler
-        const responseContent = command.handler(message);
-        
-        // Send the response
-        this.sendResponse(message.flock_id, message.nest_id, responseContent);
-        
-        // Stop after first matching command
-        break;
-      }
-    }
-  }
-  
-  /**
-   * Send a response message
-   * @param {string|number} flockId - Flock ID
-   * @param {string|number} nestId - Nest ID
-   * @param {string} content - Message content
-   * @private
-   */
-  async sendResponse(flockId, nestId, content) {
-    try {
-      console.log(`Sending response: "${content}"`);
-      
-      await this.api.post(`/flocks/${flockId}/nests/${nestId}/messages`, { content });
-    } catch (error) {
-      console.error('Failed to send response:', error.response?.data || error.message);
-    }
-  }
-}
 
-module.exports = CorvyBot; 
+      this.currentCursor = baseline.data.cursor || 0;
+
+      this.processMessages();
+
+      process.on("SIGINT", () => {
+        console.log("Client shutting down...");
+        process.exit(0);
+      });
+    } catch (err) {
+      this.emit("error", new Error("Error logging in: " + err.message));
+      this.log(`Error logging in: ${err.message}`);
+    }
+  }
+
+  // -------------------------------
+  // Message Loop
+  // -------------------------------
+
+  async processMessages() {
+    this.log("Starting message loop...");
+
+    while (true) {
+      try {
+        const res = await this.client.get("/messages", {
+          params: { cursor: this.currentCursor }
+        });
+
+        const data = res.data;
+        if (data.cursor) {
+          this.currentCursor = data.cursor;
+        }
+
+        for (const msg of data.messages || []) {
+          if (msg.user.is_bot) {
+            continue;
+          }
+
+          this.emit("messageRaw", msg);
+          this.log(`Received message "${msg.content}" from "${msg.user.username}" in "${msg.flock_name}/${msg.nest_name}"`);
+
+          const handled = await this.handleCommand(msg);
+          if (!handled) {
+            this.emit("message", msg);
+          }
+        }
+
+        await new Promise(r => setTimeout(r, 1000));
+      } catch (err) {
+        this.emit("error", new Error("Error in message loop: " + err.message));
+        this.log(`Error in message loop: ${err.message}`);
+        await new Promise(r => setTimeout(r, 5000));
+      }
+    }
+  }
+
+  async handleCommand(msg) {
+    const content = msg.content.toLowerCase();
+    for (const [prefix, handler] of this.commands.entries()) {
+      if (content.startsWith(prefix)) {
+        const argsText = msg.content.slice(prefix.length).trim();
+        await handler(msg, this, argsText);
+
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  // -------------------------------
+  // API Helpers
+  // -------------------------------
+
+  async sendMsg(flockId, nestId, content) {
+    try {
+      this.log(`Sending message to flock:${flockId}, nest:${nestId} -> "${content}"`);
+      await this.client.post(`/flocks/${flockId}/nests/${nestId}/messages`, { content });
+    } catch (err) {
+      this.emit("error", new Error("Send message failed: " + err.message));
+      this.log(`Send message failed: ${err.message}`);
+    }
+  }
+
+  async getUserById(userId) {
+    try {
+      this.log(`Fetching user by ID: ${userId}`);
+      const response = await this.client.get(`/users/${userId}`);
+      return response.data;
+    } catch (err) {
+      this.emit("error", new Error("Get user by id failed: " + err.message));
+      this.log(`Get user by id failed: ${err.message}`);
+    }
+  }
+
+  async getUserByUsername(username) {
+    try {
+      this.log(`Fetching user by username: ${username}`);
+      const response = await this.client.get(`/users/by-username/${username}`);
+
+      return response.data;
+    } catch (err) {
+      this.emit("error", new Error("Get user by username failed: " + err.message));
+      this.log(`Get user by username failed: ${err.message}`);
+    }
+  }
+
+  async getFlockById(flockId) {
+    try {
+      this.log(`Fetching flock by id: ${flockId}`);
+      const response = await this.client.get(`/flocks/${flockId}`);
+
+      return response.data;
+    } catch (err) {
+      this.emit("error", new Error("Get flock by id failed: " + err.message));
+      this.log(`Get flock by id failed: ${err.message}`);
+    }
+  }
+};
