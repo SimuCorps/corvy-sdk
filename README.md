@@ -20,35 +20,33 @@ npm install
 ### Usage
 
 ```javascript
-const CorvyBot = require('./corvy-sdk');
+import { Client } from "./corvy-sdk.js";
 
-// Replace with your bot token and API base URL
-const BOT_TOKEN = 'your_bot_token_here';
-const API_URL = 'https://corvy.chat/api/v1';
-
-// Define commands that the bot will respond to
-const commands = [
-  {
-    prefix: '!hello',
-    handler: (message) => {
-      return `Hello, ${message.user.username}!`;
-    }
-  }
-];
-
-// Create and start the bot
-const bot = new CorvyBot({
-  apiToken: BOT_TOKEN,
-  apiBaseUrl: API_URL,
-  commands: commands
+const client = new Client({
+    token: "your_token",
+    prefix: ";", // default value
+    devMode: true // default value
 });
 
-bot.start();
+client.on("error", (err) => {
+    console.error(err);
+});
+
+client.on("ready", (client) => {
+    console.log(`${client.user.name} is now online!`);
+});
+
+client.registerCommand("ping", async (msg, client, args) => {
+    return await client.sendMsg(msg.flock_id, msg.nest_id, "Pong!");
+});
+
+client.login();
 ```
 
 ### Example Bot
 
 See `javascript/example-bot.js` for a complete example bot.
+See `javascript/command-handler-example-bot.js` for a complete command handler example bot.
 
 ## Ruby SDK
 
