@@ -5,6 +5,33 @@ import types
 from typing import Annotated, Any, Callable, Union, get_args, get_origin
 from .messages import Message
 
+
+def simple_tokenize(text: str) -> list[str]:
+    tokens = []
+    current = []
+    in_quotes = False
+    escape = False
+
+    for char in text:
+        if escape:
+            current.append(char)
+            escape = False
+        elif char == "\\":
+            escape = True
+        elif char == '"':
+            in_quotes = not in_quotes
+        elif char.isspace() and not in_quotes:
+            if current:
+                tokens.append("".join(current))
+                current = []
+        else:
+            current.append(char)
+
+    if current:
+        tokens.append("".join(current))
+
+    return tokens
+
 class Greedy:
     """Marker type for Annotated[..., Greedy]"""
     pass
@@ -63,7 +90,7 @@ def parse_args(func: Callable, input_str: str, message: Message) -> list:
         ann = get_args(params[0].annotation)
         if ann is Message or (is_union_type(ann) and Message in args):
             return [message]
-    tokens = shlex.split(input_str)
+    tokens = simple_tokenize(input_str)
     out_args = []
     idx = 0
     message_injected = False
