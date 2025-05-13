@@ -1,8 +1,6 @@
 from dataclasses import dataclass
 import datetime
-
 from .partials import PartialUser
-
 
 @dataclass
 class MessageUser(PartialUser):

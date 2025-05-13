@@ -1,6 +1,4 @@
 import logging
-
-import logging
 import sys
 
 RESET = "\x1b[0m"
