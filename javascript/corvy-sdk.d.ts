@@ -2,9 +2,8 @@ import { EventEmitter } from "events";
 
 export interface ClientOptions {
     token: string;
-    globalPrefix?: string;
-    apiBaseUrl?: string;
-    apiPath?: string;
+    prefix?: string;
+    devMode?: boolean;
 }
 
 export interface Message {
