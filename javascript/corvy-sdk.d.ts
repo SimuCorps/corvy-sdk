@@ -56,8 +56,9 @@ export class Client extends EventEmitter {
     constructor(options: ClientOptions);
 
     token: string;
-    globalPrefix: string;
-    authInfo: any;
+    prefix: string;
+    client: any;
+    devMode: boolean;
 
     /**
      * Registers a command
