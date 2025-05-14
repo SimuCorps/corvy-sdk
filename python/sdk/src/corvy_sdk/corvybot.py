@@ -19,7 +19,7 @@ class CorvyBot:
     Client library for building Corvy bots
     """
     
-    def __init__(self, token: str, global_prefix: str = "!", api_base_url: str = "https://corvy.chat", api_path: str = "/api/v1"):
+    def __init__(self, token: str, global_prefix: str = "!", api_base_url: str = "https://corvy.chat", api_path: str = "/api/v2"):
         """
         Create a new bot instance
         
