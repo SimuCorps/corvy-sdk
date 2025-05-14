@@ -13,7 +13,10 @@ class PartialUser:
     async def fetch(self) -> "User":
         async with self._connection_state.client_session.get(f"{self._connection_state.api_path}/users/{self.id}") as response:
             data = await response.json()
-            return User(data["id"], data["username"], data["is_bot"], data["available_badges"], data.get("photo_url", None), data.get("badge", None))
+            user = User(data["id"], data["username"], data["is_bot"], data["available_badges"], data.get("photo_url", None), data.get("badge", None))
+            if hasattr(self, "_connection_state"):
+                user.attach_state(self._connection_state)
+            return user
     
 @dataclass
 class User(PartialUser):
