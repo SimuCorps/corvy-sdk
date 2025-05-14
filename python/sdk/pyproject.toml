@@ -20,7 +20,8 @@ classifiers = [
     "Programming Language :: Python :: 3.13"
 ]
 dependencies = [
-    "aiohttp>=3.11"
+    "aiohttp>=3.11",
+    "websockets>=15.0"
 ]
 description = "An officially sponsored, community maintained SDK for Corvy."
 readme = "PYPI_README.md"
