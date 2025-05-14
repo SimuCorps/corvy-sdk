@@ -187,7 +187,7 @@ class CorvyBot:
         for prefix, handler in self.commands.items():
             if message_content.startswith(prefix.lower()):
                 args = message.content.replace(prefix, "", 1)
-                if args != "" and args[0].isspace():
+                if args != "" and not args[0].isspace():
                     continue # We don't say there's a command to be ran if there's no space between the command name and args 
                 logger.debug(f"Command detected: {prefix}")
                 
