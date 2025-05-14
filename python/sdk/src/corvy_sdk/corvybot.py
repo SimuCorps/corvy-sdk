@@ -185,19 +185,22 @@ class CorvyBot:
         message_content: str = message.content.lower()
         # Check each command prefix
         for prefix, handler in self.commands.items():
-            if message_content.startswith(prefix.lower() + " "):
+            if message_content.startswith(prefix.lower()):
+                args = message.content.replace(prefix, "", 1)
+                if args != "" and args[0].isspace():
+                    continue # We don't say there's a command to be ran if there's no space between the command name and args 
                 logger.debug(f"Command detected: {prefix}")
                 
                 # Generate response using the command handler, if we don't get an error
                 try:
-                    args = parse_args(handler, message.content.replace(prefix, "", 1).strip(), message)
+                    args = parse_args(handler, args.strip(), message)
                     response_content = await handler(*args)
                 except Exception as e:
                     logger.exception(e)
                     events = self.events.get("on_command_exception", [])
                     for event in events:
                         await event(prefix, message, e)
-                    return False
+                    continue
                     
                 # Send the response
                 # TODO: use the nest object when it has a send() func
