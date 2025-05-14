@@ -5,7 +5,7 @@ import fs from "fs";
 const client = new Client({
     token: "your_token",
     prefix: ";", // default value
-    devMode: false // default value (true = more detailed logging)
+    devMode: true // default value (true = more detailed logging)
 });
 
 client.on("error", (err) => {
