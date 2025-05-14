@@ -2,6 +2,9 @@ import inspect
 import shlex
 import types
 from typing import Annotated, Any, Callable, Union, get_args, get_origin
+
+from .state import ConnectionState
+from .user import User, PartialUser
 from .messages import Message
 
 def simple_tokenize(text: str) -> list[str]:
@@ -34,7 +37,7 @@ class Greedy:
     """Marker type for Annotated[..., Greedy]"""
     pass
 
-def cast_type(typ: type, raw: str) -> Any:
+async def cast_type(typ: type, raw: str, connection_state: ConnectionState) -> Any:
     if typ is str:
         return raw
     if typ is int:
@@ -43,6 +46,13 @@ def cast_type(typ: type, raw: str) -> Any:
         return float(raw)
     if typ is bool:
         return raw.lower() in ("1", "true", "yes", "y", "t")
+    if typ is User:
+        try:
+            puser = PartialUser(int(raw), None).attach_state(connection_state)
+            return await puser.fetch()
+        except ValueError:
+            puser = PartialUser(None, raw).attach_state(connection_state)
+            return await puser.fetch_by_username()
     raise ValueError(f"Unsupported type: {typ!r}")
 
 def is_union_type(ann):
@@ -63,7 +73,7 @@ def get_annotated_base(ann):
         return get_args(ann)[0]
     return ann
 
-def parse_args(func: Callable, input_str: str, message: Message) -> list:
+async def parse_args(func: Callable, input_str: str, message: Message, connection_state: ConnectionState) -> list:
     """Parses the arguments for a command.
 
     Args:
@@ -115,7 +125,7 @@ def parse_args(func: Callable, input_str: str, message: Message) -> list:
             take = max(0, len(tokens) - idx - needed_for_rest)
             raw = " ".join(tokens[idx: idx + take])
             idx += take
-            out_args.append(cast_type(base_type, raw))
+            out_args.append(await cast_type(base_type, raw, connection_state))
             continue
 
         if idx >= len(tokens):
@@ -135,8 +145,8 @@ def parse_args(func: Callable, input_str: str, message: Message) -> list:
                 out_args.append(None)
             else:
                 non_none = next(t for t in args if t is not type(None))
-                out_args.append(cast_type(non_none, raw))
+                out_args.append(await cast_type(non_none, raw, connection_state))
         else:
-            out_args.append(cast_type(ann, raw))
+            out_args.append(await cast_type(ann, raw, connection_state))
 
     return out_args

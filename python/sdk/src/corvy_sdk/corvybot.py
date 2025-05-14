@@ -193,7 +193,7 @@ class CorvyBot:
                 
                 # Generate response using the command handler, if we don't get an error
                 try:
-                    args = parse_args(handler, args.strip(), message)
+                    args = await parse_args(handler, args.strip(), message, self.connection_state)
                     response_content = await handler(*args)
                 except Exception as e:
                     logger.exception(e)
