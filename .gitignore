@@ -1,0 +1,6 @@
+/sdk/dist/
+/sdk/src/*.egg-info/
+_build
+deps
+mix.lock
+node_modules
