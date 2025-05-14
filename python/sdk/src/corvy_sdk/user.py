@@ -3,8 +3,8 @@ from dataclasses import dataclass
 
 @dataclass
 class PartialUser:
-    id: int
-    username: str
+    id: int | None
+    username: str | None
     
     def attach_state(self, state: ConnectionState):
         self._connection_state = state
@@ -12,6 +12,14 @@ class PartialUser:
     
     async def fetch(self) -> "User":
         async with self._connection_state.client_session.get(f"{self._connection_state.api_path}/users/{self.id}") as response:
+            data = await response.json()
+            user = User(data["user"]["id"], data["user"]["username"], data["user"]["is_bot"], data["user"]["available_badges"], data["user"].get("photo_url", None), data["user"].get("badge", None))
+            if hasattr(self, "_connection_state"):
+                user.attach_state(self._connection_state)
+            return user
+    
+    async def fetch_by_username(self) -> "User":
+        async with self._connection_state.client_session.get(f"{self._connection_state.api_path}/users/{self.username}") as response:
             data = await response.json()
             user = User(data["user"]["id"], data["user"]["username"], data["user"]["is_bot"], data["user"]["available_badges"], data["user"].get("photo_url", None), data["user"].get("badge", None))
             if hasattr(self, "_connection_state"):
