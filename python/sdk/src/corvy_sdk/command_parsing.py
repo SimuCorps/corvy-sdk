@@ -1,4 +1,5 @@
 import inspect
+import re
 import shlex
 import types
 from typing import Annotated, Any, Callable, Union, get_args, get_origin
@@ -47,12 +48,23 @@ async def cast_type(typ: type, raw: str, connection_state: ConnectionState) -> A
     if typ is bool:
         return raw.lower() in ("1", "true", "yes", "y", "t")
     if typ is User:
+        mention = re.fullmatch(r"@user:(\d+)", raw)
+        if mention:
+            user_id = int(mention.group(1))
+            # fetch by ID from the mention
+            return await PartialUser(user_id, None)\
+                        .attach_state(connection_state)\
+                        .fetch()
         try:
-            puser = PartialUser(int(raw), None).attach_state(connection_state)
-            return await puser.fetch()
+            return await PartialUser(int(raw), None)\
+                        .attach_state(connection_state)\
+                        .fetch()
         except ValueError:
-            puser = PartialUser(None, raw).attach_state(connection_state)
-            return await puser.fetch_by_username()
+            # not a numeric ID, try username below
+            pass
+        return await PartialUser(None, raw)\
+                    .attach_state(connection_state)\
+                    .fetch_by_username()
     raise ValueError(f"Unsupported type: {typ!r}")
 
 def is_union_type(ann):
