@@ -4,3 +4,4 @@ import aiohttp
 @dataclass
 class ConnectionState:
     client_session: aiohttp.ClientSession
+    api_path: str

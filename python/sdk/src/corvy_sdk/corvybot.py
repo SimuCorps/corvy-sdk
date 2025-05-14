@@ -93,7 +93,7 @@ class CorvyBot:
 
             logger.debug("Starting bot...")
             
-            self.connection_state = ConnectionState(aiohttp.ClientSession(self.api_base_url, headers=self.headers))
+            self.connection_state = ConnectionState(aiohttp.ClientSession(self.api_base_url, headers=self.headers), self.api_path)
             
             async with self.connection_state.client_session.post(f"{self.api_path}/auth") as response:
                 response_data = await response.json()
