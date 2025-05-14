@@ -3,14 +3,16 @@ from datetime import datetime
 import signal
 import sys
 import traceback
-from typing import Awaitable, Callable, Union
+from typing import Awaitable, Callable
 import logging
 import aiohttp
-from .messages import Message, MessageUser
+from .messages import Message, MessageUser, MessageFlock, MessageNest
 from .command_parsing import parse_args
 from .default_logger import get_pretty_logger
+from .state import ConnectionState
 
 logger = get_pretty_logger("corvy_sdk")
+
 
 class CorvyBot:
     """
@@ -36,7 +38,7 @@ class CorvyBot:
             'Authorization': f"Bearer {token}",
             'Content-Type': 'application/json'
         }
-        self.client_session: aiohttp.ClientSession | None = None
+        self.connection_state: ConnectionState | None = None
         self.events: dict[str, list[Awaitable]] = {}
         
         # Setup signal handler for graceful shutdown
@@ -91,16 +93,16 @@ class CorvyBot:
 
             logger.debug("Starting bot...")
             
-            self.client_session = aiohttp.ClientSession(self.api_base_url, headers=self.headers)
+            self.connection_state = ConnectionState(aiohttp.ClientSession(self.api_base_url, headers=self.headers))
             
-            async with self.client_session.post(f"{self.api_path}/auth") as response:
+            async with self.connection_state.client_session.post(f"{self.api_path}/auth") as response:
                 response_data = await response.json()
                 logger.info(f"Bot authenticated: {response_data['bot']['name']}")
         
             # Establish baseline (gets highest message ID but no messages)
             logger.debug("Establishing baseline with server...")
             
-            async with self.client_session.get(f"{self.api_path}/messages", params={'cursor': 0}) as response:
+            async with self.connection_state.client_session.get(f"{self.api_path}/messages", params={'cursor': 0}) as response:
                 baseline_data = await response.json()
                 # Save the cursor for future requests
                 if baseline_data.get('cursor'):
@@ -129,7 +131,7 @@ class CorvyBot:
         """Process messages in a loop"""
         while True:
             try:
-                async with self.client_session.get(f"{self.api_path}/messages", params={'cursor': self.current_cursor}) as response:
+                async with self.connection_state.client_session.get(f"{self.api_path}/messages", params={'cursor': self.current_cursor}) as response:
                     data = await response.json()
 
                     # Update cursor
@@ -138,16 +140,18 @@ class CorvyBot:
 
                     # Process each new message
                     for message in data.get('messages', []):
-                        message = Message(message["id"], message["content"],
-                                          message["flock_name"], message["flock_id"],
-                                          message["nest_name"], message["nest_id"],
-                                          datetime.strptime(message["created_at"], "%Y-%m-%dT%H:%M:%SZ"), 
-                                          MessageUser(message["user"]["id"], message["user"]["username"], message["user"]["is_bot"]))
+                        
+                        msg_user = MessageUser(message["user"]["id"], message["user"]["username"], message["user"]["is_bot"], message["user"].get("photo_url", None))
+                        msg_flock = MessageFlock(message["flock_id"], message["flock_name"])
+                        msg_nest = MessageNest(message["nest_id"], msg_flock, message["nest_name"])
+                        
+                        message = Message(message["id"], message["content"], msg_flock, msg_nest, datetime.strptime(message["created_at"], "%Y-%m-%dT%H:%M:%SZ"), msg_user)
                         
                         # Run on_message_raw events
                         events = self.events.get("on_message_raw", [])
                         for event in events:
                             await event(message)
+                            
                         # Skip bot messages
                         if message.user.is_bot:
                             continue
@@ -203,7 +207,7 @@ class CorvyBot:
         # No commands were ran, so return false (we didn't run a command)
         return False
         
-    async def send_message(self, flock_id: Union[str, int], nest_id: Union[str, int], content: str):
+    async def send_message(self, flock_id: int, nest_id: int, content: str):
         """
         Send a message
         
@@ -215,7 +219,7 @@ class CorvyBot:
         try:
             logger.debug(f'Sending message: "{content}"')
             
-            async with self.client_session.post(f"{self.api_path}/flocks/{flock_id}/nests/{nest_id}/messages", json={'content': content}) as response:
+            async with self.connection_state.client_session.post(f"{self.api_path}/flocks/{flock_id}/nests/{nest_id}/messages", json={'content': content}) as response:
                 response.raise_for_status()
                 
         except Exception as e:
@@ -231,7 +235,7 @@ class CorvyBot:
     async def _handle_shutdown(self, sig, frame):
         """Handle graceful shutdown"""
         logger.info("Bot shutting down...")
-        await self.client_session.close()
+        await self.connection_state.client_session.close()
         try:
             asyncio.get_running_loop().stop()
         except RuntimeError:
