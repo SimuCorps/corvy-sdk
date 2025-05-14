@@ -9,7 +9,7 @@ from .user import PartialUser
 @dataclass
 class MessageUser(PartialUser):
     is_bot: bool
-    photo_url: str | None
+    avatar_url: str | None
 
 @dataclass
 class MessageFlock(PartialFlock):
