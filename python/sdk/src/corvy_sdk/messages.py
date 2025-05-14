@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 import datetime
 
-from python.sdk.src.corvy_sdk.state import ConnectionState
+from .state import ConnectionState
 from .nest import PartialNest
 from .flock import PartialFlock
 from .user import PartialUser
