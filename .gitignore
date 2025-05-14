@@ -1,6 +1,7 @@
 /python/sdk/dist/
 /python/sdk/src/*.egg-info/
 *.pyc
+__pycache__
 _build
 deps
 mix.lock
