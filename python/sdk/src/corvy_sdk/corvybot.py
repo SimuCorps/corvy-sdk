@@ -141,11 +141,11 @@ class CorvyBot:
                     # Process each new message
                     for message in data.get('messages', []):
                         
-                        msg_user = MessageUser(message["user"]["id"], message["user"]["username"], message["user"]["is_bot"], message["user"].get("photo_url", None))
-                        msg_flock = MessageFlock(message["flock_id"], message["flock_name"])
-                        msg_nest = MessageNest(message["nest_id"], msg_flock, message["nest_name"])
+                        msg_user = MessageUser(message["user"]["id"], message["user"]["username"], message["user"]["is_bot"], message["user"].get("photo_url", None)).attach_state(self.connection_state)
+                        msg_flock = MessageFlock(message["flock_id"], message["flock_name"]).attach_state(self.connection_state)
+                        msg_nest = MessageNest(message["nest_id"], msg_flock, message["nest_name"]).attach_state(self.connection_state)
                         
-                        message = Message(message["id"], message["content"], msg_flock, msg_nest, datetime.strptime(message["created_at"], "%Y-%m-%dT%H:%M:%SZ"), msg_user)
+                        message = Message(message["id"], message["content"], msg_flock, msg_nest, datetime.strptime(message["created_at"], "%Y-%m-%dT%H:%M:%SZ"), msg_user).attach_state(self.connection_state)
                         
                         # Run on_message_raw events
                         events = self.events.get("on_message_raw", [])
