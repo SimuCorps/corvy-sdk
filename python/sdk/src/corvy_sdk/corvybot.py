@@ -156,7 +156,7 @@ class CorvyBot:
                         if message.user.is_bot:
                             continue
 
-                        logger.debug(f"Message from {message.user.username} in {message.flock_name}/{message.nest_name} ({message.flock_id}/{message.nest_id}): {message.content}")
+                        logger.debug(f"Message from {message.user.username} in {message.flock.name}/{message.nest.name} ({message.flock.id}/{message.nest.id}): {message.content}")
 
                         # Check for commands
                         was_command = await self._handle_command(message)
@@ -173,7 +173,6 @@ class CorvyBot:
                 
             except Exception as e:
                 logger.exception(f"Error fetching messages: {str(e)}")
-                traceback.print_exc()
                 await asyncio.sleep(5)  # Longer delay on error
     
     async def _handle_command(self, message: Message) -> bool:
@@ -194,13 +193,15 @@ class CorvyBot:
                     args = parse_args(handler, message.content.replace(prefix, "", 1).strip(), message)
                     response_content = await handler(*args)
                 except Exception as e:
+                    logger.exception(e)
                     events = self.events.get("on_command_exception", [])
                     for event in events:
                         await event(prefix, message, e)
                     return False
                     
                 # Send the response
-                await self.send_message(message.flock_id, message.nest_id, response_content)
+                # TODO: use the nest object when it has a send() func
+                await self.send_message(message.flock.id, message.nest.id, response_content)
                 
                 # Return true after first matching command
                 return True
