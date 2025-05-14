@@ -28,7 +28,6 @@ class Message:
     created_at: datetime
     user: MessageUser
     
-    
     def attach_state(self, state: ConnectionState):
         self._connection_state = state
         return self
