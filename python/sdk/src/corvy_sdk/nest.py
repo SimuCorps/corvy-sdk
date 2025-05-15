@@ -45,27 +45,15 @@ class PartialNest:
         results: list[Message] = []
         for item in data["messages"]:
             u = item["user"]
-            user = MessageUser(
-                id=u["id"],
-                username=u["username"],
-                avatar_url=u.get("photo_url"),
-                is_bot=u["is_bot"],
-            )
-
+            user = MessageUser(u["id"], u["username"], u.get("photo_url"), u["is_bot"],)
             msg = Message(
-                item["id"],
-                item["content"],
-                self.flock,
-                self,
+                item["id"], item["content"], self.flock, self,
                 datetime.strptime(item["created_at"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc),
                 user
             )
-
             if hasattr(self, "_connection_state"):
                 msg.attach_state(self._connection_state)
-
             results.append(msg)
-
         results.sort(key=lambda m: m.id)
 
         return results

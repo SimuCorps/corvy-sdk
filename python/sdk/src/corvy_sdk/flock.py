@@ -29,11 +29,7 @@ class PartialFlock:
         f = data["flock"]
 
         flock = Flock(
-            f["id"],
-            f["name"],
-            f.get("icon"),
-            f["members_count"],
-            f["nests_count"],
+            f["id"], f["name"], f.get("icon"), f["members_count"], f["nests_count"],
             datetime.strptime(f["created_at"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc),
         )
 
