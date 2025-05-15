@@ -242,7 +242,7 @@ class CorvyBot:
                     events = self.events.get("on_command_exception", [])
                     for event in events:
                         await event(prefix, message, e)
-                    continue
+                    return True # a command did run, it just errored
                     
                 # Send the response
                 # TODO: use the nest object when it has a send() func
