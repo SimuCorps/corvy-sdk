@@ -1,15 +1,44 @@
 import axios from "axios";
 import EventEmitter from "events";
 
+class ClientFlocks {
+  constructor(client) {
+    this.client = client;
+    this._list = [];
+  }
+
+  async fetch() {
+    try {
+      this.client._log(`Fetching ${this.client.user.name}'s flocks`);
+      const response = await this.client.client.get("/flocks");
+
+      this._list = Array.isArray(response.data) ? response.data : response.data.flocks;
+    } catch (err) {
+      this.client._log(`Failed to fetch flocks: ${err.message}`);
+      this._list = [];
+    }
+  }
+
+  get list() {
+    return this._list;
+  }
+
+  get size() {
+    return this._list.length;
+  }
+}
+
 export class Client extends EventEmitter {
   constructor({ token, prefix = ";", devMode = false }) {
     super();
     this.token = token;
     this.prefix = prefix;
+    this.devMode = devMode;
     this.currentCursor = 0;
     this.commands = new Map();
     this.user = null;
-    this.devMode = devMode;
+    this.flocks = new ClientFlocks(this);
+    this.startTime = null;
     this.client = axios.create({
       baseURL: "https://corvy.chat/api/v1",
       headers: {
@@ -23,7 +52,7 @@ export class Client extends EventEmitter {
   // Utils
   // -------------------------------
 
-  log(...args) {
+  _log(...args) {
     if (this.devMode) {
       console.log("[DEV MODE]", ...args);
     }
@@ -44,18 +73,18 @@ export class Client extends EventEmitter {
       const fullPrefix = `${this.prefix}${name}`;
       this.commands.set(fullPrefix.toLowerCase(), async (msg, client, argsText) => {
         try {
-          this.log(`Executing command: ${fullPrefix}`);
+          this._log(`Executing command: ${fullPrefix}`);
           const data = await handler(msg, client, argsText);
           if (data) {
-            await client.sendMsg(msg.flock_id, msg.nest_id, data);
+            this._sendMsg(msg.flock_id, msg.nest_id, data);
           }
         } catch (err) {
           this.emit("commandError", fullPrefix, msg, err);
-          this.log(`Error in command "${fullPrefix}": ${err.message}`);
+          this._log(`Error in command "${fullPrefix}": ${err.message}`);
         }
       });
 
-      this.log(`Registered command: ${fullPrefix}`);
+      this._log(`Registered command: ${fullPrefix}`);
     }
   }
 
@@ -65,11 +94,14 @@ export class Client extends EventEmitter {
 
   async login() {
     try {
-
       const res = await this.client.post("/auth");
       this.user = res.data.bot;
 
+      await this.flocks.fetch();
+
       this.emit("ready", this);
+
+      this.startTime = Date.now();
 
       const baseline = await this.client.get("/messages", {
         params: { cursor: 0 }
@@ -77,7 +109,7 @@ export class Client extends EventEmitter {
 
       this.currentCursor = baseline.data.cursor || 0;
 
-      this.processMessages();
+      this._processMessages();
 
       process.on("SIGINT", () => {
         console.log("Client shutting down...");
@@ -85,7 +117,7 @@ export class Client extends EventEmitter {
       });
     } catch (err) {
       this.emit("error", new Error("Error logging in: " + err.message));
-      this.log(`Error logging in: ${err.message}`);
+      this._log(`Error logging in: ${err.message}`);
     }
   }
 
@@ -93,8 +125,8 @@ export class Client extends EventEmitter {
   // Message Loop
   // -------------------------------
 
-  async processMessages() {
-    this.log("Starting message loop...");
+  async _processMessages() {
+    this._log("Starting message loop...");
 
     while (true) {
       try {
@@ -113,9 +145,9 @@ export class Client extends EventEmitter {
           }
 
           this.emit("messageRaw", msg);
-          this.log(`Received message "${msg.content}" from "${msg.user.username}" in "${msg.flock_name}/${msg.nest_name}"`);
+          this._log(`Received message "${msg.content}" from "${msg.user.username}" in "${msg.flock_name}/${msg.nest_name}"`);
 
-          const handled = await this.handleCommand(msg);
+          const handled = await this._handleCommand(msg);
           if (!handled) {
             this.emit("message", msg);
           }
@@ -124,13 +156,13 @@ export class Client extends EventEmitter {
         await new Promise(r => setTimeout(r, 1000));
       } catch (err) {
         this.emit("error", new Error("Error in message loop: " + err.message));
-        this.log(`Error in message loop: ${err.message}`);
+        this._log(`Error in message loop: ${err.message}`);
         await new Promise(r => setTimeout(r, 5000));
       }
     }
   }
 
-  async handleCommand(msg) {
+  async _handleCommand(msg) {
     const content = msg.content.toLowerCase();
     for (const [prefix, handler] of this.commands.entries()) {
       if (content.startsWith(prefix)) {
@@ -148,48 +180,72 @@ export class Client extends EventEmitter {
   // API Helpers
   // -------------------------------
 
-  async sendMsg(flockId, nestId, content) {
+  async _sendMsg(flockId, nestId, content) {
     try {
-      this.log(`Sending message to flock:${flockId}, nest:${nestId} -> "${content}"`);
+      this._log(`Sending message to flock:${flockId}, nest:${nestId} -> "${content}"`);
       await this.client.post(`/flocks/${flockId}/nests/${nestId}/messages`, { content });
     } catch (err) {
       this.emit("error", new Error("Send message failed: " + err.message));
-      this.log(`Send message failed: ${err.message}`);
+      this._log(`Send message failed: ${err.message}`);
     }
   }
 
   async getUserById(userId) {
     try {
-      this.log(`Fetching user by ID: ${userId}`);
+      this._log(`Fetching user by ID: ${userId}`);
       const response = await this.client.get(`/users/${userId}`);
       return response.data;
     } catch (err) {
       this.emit("error", new Error("Get user by id failed: " + err.message));
-      this.log(`Get user by id failed: ${err.message}`);
+      this._log(`Get user by id failed: ${err.message}`);
     }
   }
 
   async getUserByUsername(username) {
     try {
-      this.log(`Fetching user by username: ${username}`);
+      this._log(`Fetching user by username: ${username}`);
       const response = await this.client.get(`/users/by-username/${username}`);
 
       return response.data;
     } catch (err) {
       this.emit("error", new Error("Get user by username failed: " + err.message));
-      this.log(`Get user by username failed: ${err.message}`);
+      this._log(`Get user by username failed: ${err.message}`);
     }
   }
 
   async getFlockById(flockId) {
     try {
-      this.log(`Fetching flock by id: ${flockId}`);
+      this._log(`Fetching flock by id: ${flockId}`);
       const response = await this.client.get(`/flocks/${flockId}`);
 
       return response.data;
     } catch (err) {
       this.emit("error", new Error("Get flock by id failed: " + err.message));
-      this.log(`Get flock by id failed: ${err.message}`);
+      this._log(`Get flock by id failed: ${err.message}`);
     }
+  }
+
+  // -------------------------------
+  // Stuff?
+  // -------------------------------
+
+  get uptime() {
+    return this.startTime ? Date.now() - this.startTime : 0;
+  }
+
+  get formattedUptime() {
+    const ms = this.uptime;
+    const sec = Math.floor((ms / 1000) % 60);
+    const min = Math.floor((ms / (1000 * 60)) % 60);
+    const hr = Math.floor((ms / (1000 * 60 * 60)) % 24);
+    const days = Math.floor(ms / (1000 * 60 * 60 * 24));
+    const parts = [];
+    
+    if (days) parts.push(`${days}d`);
+    if (hr) parts.push(`${hr}h`);
+    if (min) parts.push(`${min}m`);
+    if (sec || parts.length === 0) parts.push(`${sec}s`);
+
+    return parts.join(" ");
   }
 };

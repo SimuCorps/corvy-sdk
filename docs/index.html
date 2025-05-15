@@ -25,7 +25,6 @@
     
     <div class="tabs">
       <button class="tab-button active" onclick="openTab(event, 'javascript')">JavaScript</button>
-      <button class="tab-button" onclick="openTab(event, 'ruby')">Ruby</button>
       <button class="tab-button" onclick="openTab(event, 'python')">Python</button>
     </div>
     
@@ -66,76 +65,6 @@ bot.start();</code></pre>
       <h3>Example Bot</h3>
       
       <p>See <code>javascript/example-bot.js</code> for a complete example bot.</p>
-    </div>
-    
-    <!-- Ruby SDK Tab -->
-    <div id="ruby" class="tab-content">
-      <h3>Installation</h3>
-      
-      <pre><code>cd ruby
-# If you're using Bundler
-bundle install
-# Or install the gem directly
-gem build corvy_sdk.gemspec
-gem install corvy_sdk-1.5.1.gem</code></pre>
-      
-      <h3>Usage</h3>
-      
-      <pre><code>require_relative 'corvy_sdk'
-
-# Replace with your bot token
-BOT_TOKEN = 'your_bot_token_here'
-
-# Create the bot instance
-bot = CorvyBot.new(BOT_TOKEN)
-
-# Define commands using the decorator pattern
-hello_command = bot.command()
-hello_command.call(
-  define_method(:hello) do |message|
-    "Hello, #{message.user.username}!"
-  end
-)
-
-# Register an event handler
-message_event = bot.event("on_message")
-message_event.call(
-  define_method(:handle_message) do |message|
-    puts "Received: #{message.content}"
-  end
-)
-
-# Start the bot
-bot.start</code></pre>
-      
-      <h3>Command Parameters and Types</h3>
-      
-      <p>The Ruby SDK now supports advanced parameter parsing:</p>
-      
-      <pre><code># Command with parameter support
-echo_command = bot.command()
-echo_command.call(
-  define_method(:echo) do |message, echo_string = ""|
-    if echo_string.empty?
-      "You said nothing!"
-    else
-      "Echo: #{echo_string}"
-    end
-  end
-)
-
-# Exception handling with events
-command_exception_event = bot.event("on_command_exception")
-command_exception_event.call(
-  define_method(:on_exc) do |command, message, exception|
-    bot.send_message(message.flock_id, message.nest_id, 
-      "Error in command #{command}: #{exception}")
-  end
-)</code></pre>
-      
-      <h3>Example Bot</h3>
-      
-      <p>See <code>ruby/example_bot.rb</code> for a complete example bot.</p>
     </div>
     
     <!-- Python SDK Tab -->

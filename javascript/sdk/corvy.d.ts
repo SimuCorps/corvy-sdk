@@ -16,7 +16,7 @@ export interface Message {
         is_bot: boolean;
         photo_url: string;
         badge: string;
-        available_badges: Array;
+        available_badges: string[];
     };
     flock_name?: string;
     nest_name?: string;
@@ -30,7 +30,18 @@ export interface User {
         photo_url: string;
         badge: string;
         available_badges: string[];
-    };
+    }
+}
+
+export interface ClientUser {
+    user: {
+        id: string;
+        name: string;
+        icon: string;
+        created_at: string;
+        updated_at: string;
+        user_id: string;
+    }
 }
 
 export interface Flock {
@@ -42,6 +53,25 @@ export interface Flock {
         nests_count: number;
         created_at: string;
     };
+}
+
+export class Flocks {
+    constructor(client: Client);
+
+    /**
+     * Fetches and caches the flocks from the API
+     */
+    fetch(): Promise<void>;
+
+    /**
+     * List of all fetched flocks
+     */
+    get list(): Flock[];
+
+    /**
+     * Number of fetched flocks
+     */
+    get size(): number;
 }
 
 export class Client extends EventEmitter {
@@ -58,6 +88,10 @@ export class Client extends EventEmitter {
     prefix: string;
     client: any;
     devMode: boolean;
+    currentCursor: number;
+    commands: Map<string, Function>;
+    user: ClientUser | null;
+    flocks: Flocks;
 
     /**
      * Registers a command
@@ -70,14 +104,6 @@ export class Client extends EventEmitter {
      * Begins login
      */
     login(): Promise<void>;
-
-    /**
-     * Sends a message to the specified flock and nest
-     * @param {string} flockId - ID of the flock (server)
-     * @param {string} nestId - ID of the nest (channel)
-     * @param {string} content - Message to send
-     */
-    sendMsg(flockId: string, nestId: string, content: string): Promise<void>;
 
     /**
      * Fetches a user object by their ID
@@ -96,6 +122,16 @@ export class Client extends EventEmitter {
      * @param {string} flockId - The flock ID to look up
      */
     getFlockById(flockId: string): Promise<Flock>;
+
+    /**
+     * Milliseconds since the client logged in
+     */
+    get uptime(): number;
+
+    /**
+     * Human-readable uptime (e.g., "1d 3h 12m 5s")
+     */
+    get formattedUptime(): string;
 
     on(event: "ready", listener: (client: Client) => void): this;
     on(event: "messageRaw", listener: (msg: Message) => void): this;
