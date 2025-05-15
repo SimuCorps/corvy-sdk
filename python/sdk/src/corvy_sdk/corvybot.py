@@ -2,7 +2,6 @@ import asyncio
 from datetime import datetime
 import signal
 import sys
-import traceback
 from typing import Awaitable, Callable
 import logging
 import aiohttp
@@ -10,6 +9,8 @@ import json
 from websockets import ConnectionClosed
 from websockets.asyncio.client import connect
 from .messages import Message, MessageUser
+from .nest import PartialNest
+from .flock import PartialFlock
 from .command_parsing import parse_args
 from .default_logger import get_pretty_logger
 from .state import ConnectionState
@@ -43,6 +44,7 @@ class CorvyBot:
         }
         self.connection_state: ConnectionState | None = None
         self.events: dict[str, list[Awaitable]] = {}
+        self.auth_details: dict | None = None
         
         # Setup signal handler for graceful shutdown
         signal.signal(signal.SIGINT, self._handle_shutdown_stub)
@@ -101,7 +103,9 @@ class CorvyBot:
             async with client_session.post(f"{self.api_path}/auth") as response:
                 response_data = await response.json()
                 logger.info(f"Bot authenticated: {response_data['bot']['name']}")
-        
+
+            self.auth_details = response_data
+            
             # Connect to websocket
             websocket = await connect(response_data["websocket"]["url"])
             await websocket.send(json.dumps(
@@ -127,35 +131,90 @@ class CorvyBot:
             
             logger.debug("Running message loop...")
             
-            await self._process_message_loop()
+            await self._process_websocket_loop()
             
         except Exception as e:
             logger.exception(f"Failed to start bot: {str(e)}")
     
-    async def _process_message_loop(self):
-        """Process messages in a loop"""
+    async def _process_websocket_loop(self):
+        """Process websocket events in a loop"""
         while True:
             try:
                 recieved = await self.connection_state.websocket.recv()
                 if type(recieved) != str:
-                    raise TypeError("wtf why are we getting bytes")
+                    raise TypeError("The object recieved in the WebSocket was a binary object and not in text form!")
                 recieved = json.loads(recieved)
-                print(recieved)
                 match recieved["event"]:
                     case "message":
+                        await self._process_message_raw(recieved["payload"]["message"])
+                    case "phx_reply":
                         pass
                     case _:
-                        pass
+                        logger.warning(f"Websocket event {recieved["event"]} not handled!")
+                        print(recieved)
                 
-                # Wait before checking again
-                await asyncio.sleep(0)
+                await asyncio.sleep(0) # Let other tasks run
             
             except ConnectionClosed as e:
-                await self._handle_shutdown()
+                await asyncio.sleep(5)
+                await self._try_reconnect()
                 
             except Exception as e:
                 logger.exception(f"Error fetching messages: {str(e)}")
-                await asyncio.sleep(5)  # Longer delay on error
+                await asyncio.sleep(0) # Let other tasks run
+    
+    async def _process_message_raw(self, message: dict):
+        msg_user = MessageUser(message["user"]["id"], message["user"]["username"], message["user"]["is_bot"], message["user"].get("photo_url", None)).attach_state(self.connection_state)
+        msg_flock = PartialFlock(message["flock_id"]).attach_state(self.connection_state)
+        msg_nest = PartialNest(message["nest_id"], msg_flock).attach_state(self.connection_state)
+        
+        message = Message(message["id"], message["content"], msg_flock, msg_nest, datetime.strptime(message["created_at"], "%Y-%m-%dT%H:%M:%SZ"), msg_user).attach_state(self.connection_state)
+        
+        # Run on_message_raw events
+        events = self.events.get("on_message_raw", [])
+        for event in events:
+            await event(message)
+            
+        # Skip bot messages
+        if message.user.is_bot:
+            return
+        
+        logger.debug(f"Message from {message.user.username} in {message.flock.id}/{message.nest.id}: {message.content}")
+        
+        # Check for commands
+        was_command = await self._handle_command(message)
+        
+        # If it was a command, skip
+        if was_command:
+            return
+        
+        # Run on_message events
+        events = self.events.get("on_message", [])
+        for event in events:
+            await event(message)
+        
+    
+    async def _try_reconnect(self):
+        """Try to reconnect the WebSocket."""
+        while True:
+            try:
+                websocket = await connect(self.auth_details["websocket"]["url"])
+                await websocket.send(json.dumps(
+                    {
+                        "topic": self.auth_details["websocket"]["channel"],
+                        "event": "phx_join",
+                        "payload": {"token": self.token},
+                        "ref": "_py_reconnect_attempt"
+                    }
+                )) 
+                recieve_success = websocket.recv()
+                recieved = json.loads(recieve_success)
+                if recieved["ref"] == "_py_reconnect_attempt":
+                    self.connection_state.websocket = websocket
+                    break
+            except Exception:
+                pass
+            await asyncio.sleep(5)
     
     async def _handle_command(self, message: Message) -> bool:
         """
