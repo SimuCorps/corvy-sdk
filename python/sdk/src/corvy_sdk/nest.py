@@ -45,7 +45,7 @@ class PartialNest:
         results: list[Message] = []
         for item in data["messages"]:
             u = item["user"]
-            user = MessageUser(u["id"], u["username"], u.get("photo_url"), u["is_bot"],)
+            user = MessageUser(u["id"], u["username"], u.get("photo_url"), u["is_bot"])
             msg = Message(
                 item["id"], item["content"], self.flock, self,
                 datetime.strptime(item["created_at"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc),
