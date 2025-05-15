@@ -220,16 +220,19 @@ class CorvyBot:
     async def _keepalive(self):
         """Keeps the WebSocket alive."""
         while True:
-            await self.connection_state.websocket.send(json.dumps({
-                "topic": "phoenix",
-                "event": "heartbeat",
-                "payload": {},
-                "ref": f"_py_keepalive_{self.ws_keepalive_id}"
-            }))
-            logger.debug(f"Keepalive #{self.ws_keepalive_id} sent.")
-            self.ws_keepalive_id += 1
-            # Wait 30 seconds before the next keepalive
-            await asyncio.sleep(30)
+            try:
+                await self.connection_state.websocket.send(json.dumps({
+                    "topic": "phoenix",
+                    "event": "heartbeat",
+                    "payload": {},
+                    "ref": f"_py_keepalive_{self.ws_keepalive_id}"
+                }))
+                logger.debug(f"Keepalive #{self.ws_keepalive_id} sent.")
+                self.ws_keepalive_id += 1
+                # Wait 30 seconds before the next keepalive
+                await asyncio.sleep(30)
+            except ConnectionClosed:
+                pass # should reconnect soon
     
     async def _handle_command(self, message: Message) -> bool:
         """
