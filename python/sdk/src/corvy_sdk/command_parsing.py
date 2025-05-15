@@ -2,7 +2,7 @@ import inspect
 import re
 import shlex
 import types
-from typing import Annotated, Any, Callable, Union, get_args, get_origin
+from typing import Annotated, Any, Callable, List, Union, get_args, get_origin
 
 from .state import ConnectionState
 from .user import User, PartialUser
@@ -37,6 +37,12 @@ def simple_tokenize(text: str) -> list[str]:
 class Greedy:
     """Marker type for Annotated[..., Greedy]"""
     pass
+
+def is_list_type(ann):
+    return get_origin(ann) in (list, List)
+
+def get_list_arg_type(ann):
+    return get_args(ann)[0] if get_args(ann) else str
 
 async def cast_type(typ: type, raw: str, connection_state: ConnectionState) -> Any:
     if typ is str:
@@ -138,6 +144,15 @@ async def parse_args(func: Callable, input_str: str, message: Message, connectio
             raw = " ".join(tokens[idx: idx + take])
             idx += take
             out_args.append(await cast_type(base_type, raw, connection_state))
+            continue
+        
+        if is_list_type(ann):
+            elem_type = get_list_arg_type(ann)
+            needed_for_rest = len(params) - (p_i + 1)
+            take = max(0, len(tokens) - idx - needed_for_rest)
+            items = tokens[idx: idx + take]
+            idx += take
+            out_args.append([await cast_type(elem_type, item, connection_state) for item in items])
             continue
 
         if idx >= len(tokens):
