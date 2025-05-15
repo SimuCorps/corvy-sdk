@@ -45,7 +45,10 @@ export class Client extends EventEmitter {
       this.commands.set(fullPrefix.toLowerCase(), async (msg, client, argsText) => {
         try {
           this.log(`Executing command: ${fullPrefix}`);
-          await handler(msg, client, argsText);
+          const data = await handler(msg, client, argsText);
+          if (data) {
+            await client.sendMsg(msg.flock_id, msg.nest_id, data);
+          }
         } catch (err) {
           this.emit("commandError", fullPrefix, msg, err);
           this.log(`Error in command "${fullPrefix}": ${err.message}`);
