@@ -211,6 +211,7 @@ class CorvyBot:
                 recieved = json.loads(recieve_success)
                 if recieved["ref"] == "_py_reconnect_attempt":
                     self.connection_state.websocket = websocket
+                    logger.info("Reconnected to WebSocket.")
                     break
             except Exception:
                 pass
@@ -225,8 +226,8 @@ class CorvyBot:
                 "payload": {},
                 "ref": f"_py_keepalive_{self.ws_keepalive_id}"
             }))
+            logger.debug(f"Keepalive #{self.ws_keepalive_id} sent.")
             self.ws_keepalive_id += 1
-
             # Wait 30 seconds before the next keepalive
             await asyncio.sleep(30)
     
