@@ -46,7 +46,7 @@ class CorvyBot:
         self.connection_state: ConnectionState | None = None
         self.events: dict[str, list[Awaitable]] = {}
         self.auth_details: dict | None = None
-        
+        self.ws_keepalive_id: int = 0
         # Setup signal handler for graceful shutdown
         signal.signal(signal.SIGINT, self._handle_shutdown_stub)
     
@@ -118,7 +118,7 @@ class CorvyBot:
                 }
             ))
             self.connection_state = ConnectionState(aiohttp.ClientSession(self.api_base_url, headers=self.headers), websocket, response_data["websocket"]["channel"], self.api_path)
-            
+            asyncio.create_task(self._keepalive())
             # Log command prefixes
             command_prefixes = [cmd for cmd in self.commands.keys()]
             logger.debug(f"Listening for commands: {', '.join(command_prefixes)}")
@@ -194,7 +194,6 @@ class CorvyBot:
         for event in events:
             await event(message)
         
-    
     async def _try_reconnect(self):
         """Try to reconnect the WebSocket."""
         while True:
@@ -208,14 +207,32 @@ class CorvyBot:
                         "ref": "_py_reconnect_attempt"
                     }
                 )) 
-                recieve_success = websocket.recv()
+                recieve_success = await websocket.recv()
                 recieved = json.loads(recieve_success)
                 if recieved["ref"] == "_py_reconnect_attempt":
                     self.connection_state.websocket = websocket
+                    logger.info("Reconnected to WebSocket.")
                     break
             except Exception:
                 pass
             await asyncio.sleep(5)
+    
+    async def _keepalive(self):
+        """Keeps the WebSocket alive."""
+        while True:
+            try:
+                await self.connection_state.websocket.send(json.dumps({
+                    "topic": "phoenix",
+                    "event": "heartbeat",
+                    "payload": {},
+                    "ref": f"_py_keepalive_{self.ws_keepalive_id}"
+                }))
+                logger.debug(f"Keepalive #{self.ws_keepalive_id} sent.")
+                self.ws_keepalive_id += 1
+                # Wait 30 seconds before the next keepalive
+                await asyncio.sleep(30)
+            except ConnectionClosed:
+                pass # should reconnect soon
     
     async def _handle_command(self, message: Message) -> bool:
         """
@@ -242,7 +259,7 @@ class CorvyBot:
                     events = self.events.get("on_command_exception", [])
                     for event in events:
                         await event(prefix, message, e)
-                    continue
+                    return True # a command did run, it just errored
                     
                 # Send the response
                 # TODO: use the nest object when it has a send() func
