@@ -12,19 +12,11 @@ class MessageUser(PartialUser):
     avatar_url: str | None
 
 @dataclass
-class MessageFlock(PartialFlock):
-    name: str
-    
-@dataclass
-class MessageNest(PartialNest):
-    name: str
-
-@dataclass
 class Message:
     id: int
     content: str
-    flock: MessageFlock
-    nest: MessageNest
+    flock: PartialFlock
+    nest: PartialNest
     created_at: datetime
     user: MessageUser
     

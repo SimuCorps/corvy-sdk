@@ -6,7 +6,10 @@ import traceback
 from typing import Awaitable, Callable
 import logging
 import aiohttp
-from .messages import Message, MessageUser, MessageFlock, MessageNest
+import json
+from websockets import ConnectionClosed
+from websockets.asyncio.client import connect
+from .messages import Message, MessageUser
 from .command_parsing import parse_args
 from .default_logger import get_pretty_logger
 from .state import ConnectionState
@@ -92,22 +95,24 @@ class CorvyBot:
                 await event(self)
 
             logger.debug("Starting bot...")
+            client_session = aiohttp.ClientSession(self.api_base_url, headers=self.headers)
+            response_data = {}
             
-            self.connection_state = ConnectionState(aiohttp.ClientSession(self.api_base_url, headers=self.headers), self.api_path)
-            
-            async with self.connection_state.client_session.post(f"{self.api_path}/auth") as response:
+            async with client_session.post(f"{self.api_path}/auth") as response:
                 response_data = await response.json()
                 logger.info(f"Bot authenticated: {response_data['bot']['name']}")
         
-            # Establish baseline (gets highest message ID but no messages)
-            logger.debug("Establishing baseline with server...")
-            
-            async with self.connection_state.client_session.get(f"{self.api_path}/messages", params={'cursor': 0}) as response:
-                baseline_data = await response.json()
-                # Save the cursor for future requests
-                if baseline_data.get('cursor'):
-                    self.current_cursor = baseline_data['cursor']
-                    logger.debug(f"Baseline established. Starting with message ID: {self.current_cursor}")
+            # Connect to websocket
+            websocket = await connect(response_data["websocket"]["url"])
+            await websocket.send(json.dumps(
+                {
+                    "topic": response_data["websocket"]["channel"],
+                    "event": "phx_join",
+                    "payload": {"token": self.token},
+                    "ref": "1"
+                }
+            ))
+            self.connection_state = ConnectionState(aiohttp.ClientSession(self.api_base_url, headers=self.headers), websocket, response_data["websocket"]["channel"], self.api_path)
             
             # Log command prefixes
             command_prefixes = [cmd for cmd in self.commands.keys()]
@@ -131,45 +136,22 @@ class CorvyBot:
         """Process messages in a loop"""
         while True:
             try:
-                async with self.connection_state.client_session.get(f"{self.api_path}/messages", params={'cursor': self.current_cursor}) as response:
-                    data = await response.json()
-
-                    # Update cursor
-                    if data.get('cursor'):
-                        self.current_cursor = data['cursor']
-
-                    # Process each new message
-                    for message in data.get('messages', []):
-                        
-                        msg_user = MessageUser(message["user"]["id"], message["user"]["username"], message["user"]["is_bot"], message["user"].get("photo_url", None)).attach_state(self.connection_state)
-                        msg_flock = MessageFlock(message["flock_id"], message["flock_name"]).attach_state(self.connection_state)
-                        msg_nest = MessageNest(message["nest_id"], msg_flock, message["nest_name"]).attach_state(self.connection_state)
-                        
-                        message = Message(message["id"], message["content"], msg_flock, msg_nest, datetime.strptime(message["created_at"], "%Y-%m-%dT%H:%M:%SZ"), msg_user).attach_state(self.connection_state)
-                        
-                        # Run on_message_raw events
-                        events = self.events.get("on_message_raw", [])
-                        for event in events:
-                            await event(message)
-                            
-                        # Skip bot messages
-                        if message.user.is_bot:
-                            continue
-
-                        logger.debug(f"Message from {message.user.username} in {message.flock.name}/{message.nest.name} ({message.flock.id}/{message.nest.id}): {message.content}")
-
-                        # Check for commands
-                        was_command = await self._handle_command(message)
-                        # If it was a command, skip
-                        if was_command:
-                            continue
-                        # Run on_message events
-                        events = self.events.get("on_message", [])
-                        for event in events:
-                            await event(message)
+                recieved = await self.connection_state.websocket.recv()
+                if type(recieved) != str:
+                    raise TypeError("wtf why are we getting bytes")
+                recieved = json.loads(recieved)
+                print(recieved)
+                match recieved["event"]:
+                    case "message":
+                        pass
+                    case _:
+                        pass
                 
                 # Wait before checking again
-                await asyncio.sleep(1)
+                await asyncio.sleep(0)
+            
+            except ConnectionClosed as e:
+                await self._handle_shutdown()
                 
             except Exception as e:
                 logger.exception(f"Error fetching messages: {str(e)}")
@@ -240,6 +222,7 @@ class CorvyBot:
         """Handle graceful shutdown"""
         logger.info("Bot shutting down...")
         await self.connection_state.client_session.close()
+        await self.connection_state.websocket.close(1000, "Bot shutting down")
         try:
             asyncio.get_running_loop().stop()
         except RuntimeError:
