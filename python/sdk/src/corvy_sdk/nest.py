@@ -28,11 +28,7 @@ class PartialNest:
                 nest.attach_state(self._connection_state)
             return nest
     
-    async def get_messages(
-        self,
-        limit: int = 50,
-        before_id: int | None = None,
-    ) -> list["Message"]:
+    async def get_messages(self, limit: int = 50, before_id: int | None = None) -> list["Message"]:
         params: dict[str, int] = {"limit": min(limit, 50)}
         if before_id is not None:
             params["before_id"] = before_id
@@ -56,18 +52,13 @@ class PartialNest:
                 is_bot=u["is_bot"],
             )
 
-            created = (
-                datetime.strptime(item["created_at"], "%Y-%m-%dT%H:%M:%SZ")
-                .replace(tzinfo=timezone.utc)
-            )
-
             msg = Message(
-                id=item["id"],
-                content=item["content"],
-                flock=self.flock,
-                nest=self,
-                created_at=created,
-                user=user,
+                item["id"],
+                item["content"],
+                self.flock,
+                self,
+                datetime.strptime(item["created_at"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc),
+                user
             )
 
             if hasattr(self, "_connection_state"):
