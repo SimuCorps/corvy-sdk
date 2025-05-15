@@ -1,16 +1,17 @@
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 import signal
 import sys
 from typing import Awaitable, Callable
 import logging
+from warnings import deprecated
 import aiohttp
 import json
 from websockets import ConnectionClosed
 from websockets.asyncio.client import connect
 from .messages import Message, MessageUser
 from .nest import PartialNest
-from .flock import PartialFlock
+from .flock import PartialFlock, Flock
 from .command_parsing import parse_args
 from .default_logger import get_pretty_logger
 from .state import ConnectionState
@@ -168,7 +169,7 @@ class CorvyBot:
         msg_flock = PartialFlock(message["flock_id"]).attach_state(self.connection_state)
         msg_nest = PartialNest(message["nest_id"], msg_flock).attach_state(self.connection_state)
         
-        message = Message(message["id"], message["content"], msg_flock, msg_nest, datetime.strptime(message["created_at"], "%Y-%m-%dT%H:%M:%SZ"), msg_user).attach_state(self.connection_state)
+        message = Message(message["id"], message["content"], msg_flock, msg_nest, datetime.strptime(message["created_at"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc), msg_user).attach_state(self.connection_state)
         
         # Run on_message_raw events
         events = self.events.get("on_message_raw", [])
@@ -251,7 +252,8 @@ class CorvyBot:
                 return True
         # No commands were ran, so return false (we didn't run a command)
         return False
-        
+    
+    @deprecated("use nest.send()")
     async def send_message(self, flock_id: int, nest_id: int, content: str):
         """
         Send a message
@@ -269,7 +271,11 @@ class CorvyBot:
                 
         except Exception as e:
             logger.exception(f"Failed to send message: {str(e)}")
-            
+    
+    async def get_flocks(self) -> list[Flock]:
+        """Get all flocks your bot is in."""
+        return await Flock._get_all(self.connection_state)
+    
     def _handle_shutdown_stub(self, sig, frame):
         try:
             loop = asyncio.get_running_loop()
