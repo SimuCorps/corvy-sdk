@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import json
 from typing import TYPE_CHECKING
 from .flock import PartialFlock
 from .state import ConnectionState
@@ -57,6 +58,20 @@ class PartialNest:
         results.sort(key=lambda m: m.id)
 
         return results
+    
+    async def send(self, content: str):
+        await self._connection_state.websocket.send(json.dumps(
+            {
+                "topic": self._connection_state.bot_channel,
+                "event": "send_message",
+                "payload": {
+                    "flock_id": self.flock.id,
+                    "nest_id": self.id,
+                    "content": content
+                },
+                "ref": "_py_msg"
+            }
+        )) 
         
     
     

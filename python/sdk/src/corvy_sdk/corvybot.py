@@ -246,7 +246,7 @@ class CorvyBot:
                     
                 # Send the response
                 # TODO: use the nest object when it has a send() func
-                await self.send_message(message.flock.id, message.nest.id, response_content)
+                await message.nest.send(response_content)
                 
                 # Return true after first matching command
                 return True
