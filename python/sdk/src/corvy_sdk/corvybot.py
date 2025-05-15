@@ -1,23 +1,30 @@
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 import signal
 import sys
-import traceback
-from typing import Awaitable, Callable, Union
+from typing import Awaitable, Callable
 import logging
+from warnings import deprecated
 import aiohttp
+import json
+from websockets import ConnectionClosed
+from websockets.asyncio.client import connect
 from .messages import Message, MessageUser
+from .nest import PartialNest
+from .flock import PartialFlock, Flock
 from .command_parsing import parse_args
 from .default_logger import get_pretty_logger
+from .state import ConnectionState
 
 logger = get_pretty_logger("corvy_sdk")
+
 
 class CorvyBot:
     """
     Client library for building Corvy bots
     """
     
-    def __init__(self, token: str, global_prefix: str = "!", api_base_url: str = "https://corvy.chat", api_path: str = "/api/v1"):
+    def __init__(self, token: str, global_prefix: str = "!", api_base_url: str = "https://corvy.chat", api_path: str = "/api/v2"):
         """
         Create a new bot instance
         
@@ -36,8 +43,9 @@ class CorvyBot:
             'Authorization': f"Bearer {token}",
             'Content-Type': 'application/json'
         }
-        self.client_session: aiohttp.ClientSession | None = None
+        self.connection_state: ConnectionState | None = None
         self.events: dict[str, list[Awaitable]] = {}
+        self.auth_details: dict | None = None
         
         # Setup signal handler for graceful shutdown
         signal.signal(signal.SIGINT, self._handle_shutdown_stub)
@@ -90,22 +98,26 @@ class CorvyBot:
                 await event(self)
 
             logger.debug("Starting bot...")
+            client_session = aiohttp.ClientSession(self.api_base_url, headers=self.headers)
+            response_data = {}
             
-            self.client_session = aiohttp.ClientSession(self.api_base_url, headers=self.headers)
-            
-            async with self.client_session.post(f"{self.api_path}/auth") as response:
+            async with client_session.post(f"{self.api_path}/auth") as response:
                 response_data = await response.json()
                 logger.info(f"Bot authenticated: {response_data['bot']['name']}")
-        
-            # Establish baseline (gets highest message ID but no messages)
-            logger.debug("Establishing baseline with server...")
+
+            self.auth_details = response_data
             
-            async with self.client_session.get(f"{self.api_path}/messages", params={'cursor': 0}) as response:
-                baseline_data = await response.json()
-                # Save the cursor for future requests
-                if baseline_data.get('cursor'):
-                    self.current_cursor = baseline_data['cursor']
-                    logger.debug(f"Baseline established. Starting with message ID: {self.current_cursor}")
+            # Connect to websocket
+            websocket = await connect(response_data["websocket"]["url"])
+            await websocket.send(json.dumps(
+                {
+                    "topic": response_data["websocket"]["channel"],
+                    "event": "phx_join",
+                    "payload": {"token": self.token},
+                    "ref": "1"
+                }
+            ))
+            self.connection_state = ConnectionState(aiohttp.ClientSession(self.api_base_url, headers=self.headers), websocket, response_data["websocket"]["channel"], self.api_path)
             
             # Log command prefixes
             command_prefixes = [cmd for cmd in self.commands.keys()]
@@ -120,57 +132,90 @@ class CorvyBot:
             
             logger.debug("Running message loop...")
             
-            await self._process_message_loop()
+            await self._process_websocket_loop()
             
         except Exception as e:
             logger.exception(f"Failed to start bot: {str(e)}")
     
-    async def _process_message_loop(self):
-        """Process messages in a loop"""
+    async def _process_websocket_loop(self):
+        """Process websocket events in a loop"""
         while True:
             try:
-                async with self.client_session.get(f"{self.api_path}/messages", params={'cursor': self.current_cursor}) as response:
-                    data = await response.json()
-
-                    # Update cursor
-                    if data.get('cursor'):
-                        self.current_cursor = data['cursor']
-
-                    # Process each new message
-                    for message in data.get('messages', []):
-                        message = Message(message["id"], message["content"],
-                                          message["flock_name"], message["flock_id"],
-                                          message["nest_name"], message["nest_id"],
-                                          datetime.strptime(message["created_at"], "%Y-%m-%dT%H:%M:%SZ"), 
-                                          MessageUser(message["user"]["id"], message["user"]["username"], message["user"]["is_bot"]))
-                        
-                        # Run on_message_raw events
-                        events = self.events.get("on_message_raw", [])
-                        for event in events:
-                            await event(message)
-                        # Skip bot messages
-                        if message.user.is_bot:
-                            continue
-
-                        logger.debug(f"Message from {message.user.username} in {message.flock_name}/{message.nest_name} ({message.flock_id}/{message.nest_id}): {message.content}")
-
-                        # Check for commands
-                        was_command = await self._handle_command(message)
-                        # If it was a command, skip
-                        if was_command:
-                            continue
-                        # Run on_message events
-                        events = self.events.get("on_message", [])
-                        for event in events:
-                            await event(message)
+                recieved = await self.connection_state.websocket.recv()
+                if type(recieved) != str:
+                    raise TypeError("The object recieved in the WebSocket was a binary object and not in text form!")
+                recieved = json.loads(recieved)
+                match recieved["event"]:
+                    case "message":
+                        await self._process_message_raw(recieved["payload"]["message"])
+                    case "phx_reply":
+                        pass
+                    case _:
+                        logger.warning(f"Websocket event {recieved["event"]} not handled!")
+                        print(recieved)
                 
-                # Wait before checking again
-                await asyncio.sleep(1)
+                await asyncio.sleep(0) # Let other tasks run
+            
+            except ConnectionClosed as e:
+                await asyncio.sleep(5)
+                await self._try_reconnect()
                 
             except Exception as e:
                 logger.exception(f"Error fetching messages: {str(e)}")
-                traceback.print_exc()
-                await asyncio.sleep(5)  # Longer delay on error
+                await asyncio.sleep(0) # Let other tasks run
+    
+    async def _process_message_raw(self, message: dict):
+        msg_user = MessageUser(message["user"]["id"], message["user"]["username"], message["user"]["is_bot"], message["user"].get("photo_url", None)).attach_state(self.connection_state)
+        msg_flock = PartialFlock(message["flock_id"]).attach_state(self.connection_state)
+        msg_nest = PartialNest(message["nest_id"], msg_flock).attach_state(self.connection_state)
+        
+        message = Message(message["id"], message["content"], msg_flock, msg_nest, datetime.strptime(message["created_at"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc), msg_user).attach_state(self.connection_state)
+        
+        # Run on_message_raw events
+        events = self.events.get("on_message_raw", [])
+        for event in events:
+            await event(message)
+            
+        # Skip bot messages
+        if message.user.is_bot:
+            return
+        
+        logger.debug(f"Message from {message.user.username} in {message.flock.id}/{message.nest.id}: {message.content}")
+        
+        # Check for commands
+        was_command = await self._handle_command(message)
+        
+        # If it was a command, skip
+        if was_command:
+            return
+        
+        # Run on_message events
+        events = self.events.get("on_message", [])
+        for event in events:
+            await event(message)
+        
+    
+    async def _try_reconnect(self):
+        """Try to reconnect the WebSocket."""
+        while True:
+            try:
+                websocket = await connect(self.auth_details["websocket"]["url"])
+                await websocket.send(json.dumps(
+                    {
+                        "topic": self.auth_details["websocket"]["channel"],
+                        "event": "phx_join",
+                        "payload": {"token": self.token},
+                        "ref": "_py_reconnect_attempt"
+                    }
+                )) 
+                recieve_success = websocket.recv()
+                recieved = json.loads(recieve_success)
+                if recieved["ref"] == "_py_reconnect_attempt":
+                    self.connection_state.websocket = websocket
+                    break
+            except Exception:
+                pass
+            await asyncio.sleep(5)
     
     async def _handle_command(self, message: Message) -> bool:
         """
@@ -182,28 +227,34 @@ class CorvyBot:
         message_content: str = message.content.lower()
         # Check each command prefix
         for prefix, handler in self.commands.items():
-            if message_content.startswith(prefix.lower() + " "):
+            if message_content.startswith(prefix.lower()):
+                args = message.content.replace(prefix, "", 1)
+                if args != "" and not args[0].isspace():
+                    continue # We don't say there's a command to be ran if there's no space between the command name and args 
                 logger.debug(f"Command detected: {prefix}")
                 
                 # Generate response using the command handler, if we don't get an error
                 try:
-                    args = parse_args(handler, message.content.replace(prefix, "", 1).strip(), message)
+                    args = await parse_args(handler, args.strip(), message, self.connection_state)
                     response_content = await handler(*args)
                 except Exception as e:
+                    logger.exception(e)
                     events = self.events.get("on_command_exception", [])
                     for event in events:
                         await event(prefix, message, e)
-                    return False
+                    continue
                     
                 # Send the response
-                await self.send_message(message.flock_id, message.nest_id, response_content)
+                # TODO: use the nest object when it has a send() func
+                await message.nest.send(response_content)
                 
                 # Return true after first matching command
                 return True
         # No commands were ran, so return false (we didn't run a command)
         return False
-        
-    async def send_message(self, flock_id: Union[str, int], nest_id: Union[str, int], content: str):
+    
+    @deprecated("use nest.send()")
+    async def send_message(self, flock_id: int, nest_id: int, content: str):
         """
         Send a message
         
@@ -215,12 +266,16 @@ class CorvyBot:
         try:
             logger.debug(f'Sending message: "{content}"')
             
-            async with self.client_session.post(f"{self.api_path}/flocks/{flock_id}/nests/{nest_id}/messages", json={'content': content}) as response:
+            async with self.connection_state.client_session.post(f"{self.api_path}/flocks/{flock_id}/nests/{nest_id}/messages", json={'content': content}) as response:
                 response.raise_for_status()
                 
         except Exception as e:
             logger.exception(f"Failed to send message: {str(e)}")
-            
+    
+    async def get_flocks(self) -> list[Flock]:
+        """Get all flocks your bot is in."""
+        return await Flock._get_all(self.connection_state)
+    
     def _handle_shutdown_stub(self, sig, frame):
         try:
             loop = asyncio.get_running_loop()
@@ -231,7 +286,8 @@ class CorvyBot:
     async def _handle_shutdown(self, sig, frame):
         """Handle graceful shutdown"""
         logger.info("Bot shutting down...")
-        await self.client_session.close()
+        await self.connection_state.client_session.close()
+        await self.connection_state.websocket.close(1000, "Bot shutting down")
         try:
             asyncio.get_running_loop().stop()
         except RuntimeError:

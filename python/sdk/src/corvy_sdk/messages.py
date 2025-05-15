@@ -1,18 +1,25 @@
 from dataclasses import dataclass
 import datetime
-from .partials import PartialUser
+
+from .state import ConnectionState
+from .nest import PartialNest
+from .flock import PartialFlock
+from .user import PartialUser
 
 @dataclass
 class MessageUser(PartialUser):
     is_bot: bool
-    
+    avatar_url: str | None
+
 @dataclass
 class Message:
     id: int
     content: str
-    flock_name: str
-    flock_id: int
-    nest_name: str
-    nest_id: int
+    flock: PartialFlock
+    nest: PartialNest
     created_at: datetime
     user: MessageUser
+    
+    def attach_state(self, state: ConnectionState):
+        self._connection_state = state
+        return self

@@ -1,7 +1,11 @@
 import inspect
+import re
 import shlex
 import types
-from typing import Annotated, Any, Callable, Union, get_args, get_origin
+from typing import Annotated, Any, Callable, List, Union, get_args, get_origin
+
+from .state import ConnectionState
+from .user import User, PartialUser
 from .messages import Message
 
 def simple_tokenize(text: str) -> list[str]:
@@ -34,7 +38,13 @@ class Greedy:
     """Marker type for Annotated[..., Greedy]"""
     pass
 
-def cast_type(typ: type, raw: str) -> Any:
+def is_list_type(ann):
+    return get_origin(ann) in (list, List)
+
+def get_list_arg_type(ann):
+    return get_args(ann)[0] if get_args(ann) else str
+
+async def cast_type(typ: type, raw: str, connection_state: ConnectionState) -> Any:
     if typ is str:
         return raw
     if typ is int:
@@ -43,6 +53,24 @@ def cast_type(typ: type, raw: str) -> Any:
         return float(raw)
     if typ is bool:
         return raw.lower() in ("1", "true", "yes", "y", "t")
+    if typ is User:
+        mention = re.fullmatch(r"@user:(\d+)", raw)
+        if mention:
+            user_id = int(mention.group(1))
+            # fetch by ID from the mention
+            return await PartialUser(user_id, None)\
+                        .attach_state(connection_state)\
+                        .fetch()
+        try:
+            return await PartialUser(int(raw), None)\
+                        .attach_state(connection_state)\
+                        .fetch()
+        except ValueError:
+            # not a numeric ID, try username below
+            pass
+        return await PartialUser(None, raw)\
+                    .attach_state(connection_state)\
+                    .fetch_by_username()
     raise ValueError(f"Unsupported type: {typ!r}")
 
 def is_union_type(ann):
@@ -63,7 +91,7 @@ def get_annotated_base(ann):
         return get_args(ann)[0]
     return ann
 
-def parse_args(func: Callable, input_str: str, message: Message) -> list:
+async def parse_args(func: Callable, input_str: str, message: Message, connection_state: ConnectionState) -> list:
     """Parses the arguments for a command.
 
     Args:
@@ -115,7 +143,16 @@ def parse_args(func: Callable, input_str: str, message: Message) -> list:
             take = max(0, len(tokens) - idx - needed_for_rest)
             raw = " ".join(tokens[idx: idx + take])
             idx += take
-            out_args.append(cast_type(base_type, raw))
+            out_args.append(await cast_type(base_type, raw, connection_state))
+            continue
+        
+        if is_list_type(ann):
+            elem_type = get_list_arg_type(ann)
+            needed_for_rest = len(params) - (p_i + 1)
+            take = max(0, len(tokens) - idx - needed_for_rest)
+            items = tokens[idx: idx + take]
+            idx += take
+            out_args.append([await cast_type(elem_type, item, connection_state) for item in items])
             continue
 
         if idx >= len(tokens):
@@ -135,8 +172,8 @@ def parse_args(func: Callable, input_str: str, message: Message) -> list:
                 out_args.append(None)
             else:
                 non_none = next(t for t in args if t is not type(None))
-                out_args.append(cast_type(non_none, raw))
+                out_args.append(await cast_type(non_none, raw, connection_state))
         else:
-            out_args.append(cast_type(ann, raw))
+            out_args.append(await cast_type(ann, raw, connection_state))
 
     return out_args
