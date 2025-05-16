@@ -50,14 +50,28 @@ class CorvyBot:
         # Setup signal handler for graceful shutdown
         signal.signal(signal.SIGINT, self._handle_shutdown_stub)
     
-    def command(self, prefix: str | None = None):
+    def command(self, name: str | None = None, include_global_prefix: bool = True, aliases: list[str] | None = None):
         """Register a command.
         
         Args:
-            prefix: The prefix of the command. Defaults to the name of the function with the global prefix beforehand."""
+            name: The name of the command. Defaults to the name of the function.
+            include_global_prefix: Notes if the global prefix should be included in the command name. True by default.
+            aliases: A list of aliases for the command."""
             
         def _decorator_inst(func: Awaitable):
-            self.commands[prefix or f"{self.global_prefix}{getattr(func, '__name__', None)}"] = func
+            if name is None:
+                prefix = getattr(func, '__name__', "")
+            else:
+                prefix = name
+            if include_global_prefix:
+                prefix = f"{self.global_prefix}{prefix}"
+            self.commands[prefix] = func
+            if aliases:
+                for alias in aliases:
+                    if include_global_prefix:
+                        self.commands[f"{self.global_prefix}{alias}"] = func
+                    else:
+                        self.commands[alias] = func
             return func # We don't wrap the function itself yet
         
         return _decorator_inst
