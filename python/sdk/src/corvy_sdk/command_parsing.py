@@ -1,12 +1,43 @@
+from abc import ABC, abstractmethod
 import inspect
 import re
 import shlex
 import types
-from typing import Annotated, Any, Callable, List, Union, get_args, get_origin
+from typing import Annotated, Any, Callable, Generic, List, Type, TypeVar, Union, get_args, get_origin
 
 from .state import ConnectionState
 from .user import User, PartialUser
 from .messages import Message
+
+T = TypeVar('T')
+
+class Parser(ABC, Generic[T]):
+    @abstractmethod
+    async def parse_token(self, token: str, connection_state: ConnectionState) -> T:
+        """Parse raw string into T."""
+        ...
+
+    @classmethod
+    @abstractmethod
+    def target_type(cls) -> Type[T]:
+        """Which T this parser handles."""
+        ...
+
+PARSERS_BY_TYPE: dict[Type[Any], Parser[Any]] = {}
+
+def register_parser(p: Parser[Any]) -> None:
+    """Add a parser instance to the registry."""
+    PARSERS_BY_TYPE[p.target_type()] = p
+
+def has_parser_for(typ: Type[Any]) -> bool:
+    """Check if we’ve registered a parser for `typ`."""
+    return typ in PARSERS_BY_TYPE
+
+async def cast_type(typ: Type[Any], raw: str, connection_state: ConnectionState) -> Any:
+    parser = PARSERS_BY_TYPE.get(typ)
+    if parser:
+        return await parser.parse_token(raw, connection_state)
+    raise ValueError(f"No parser for type: {typ!r}")
 
 def simple_tokenize(text: str) -> list[str]:
     tokens = []
@@ -43,35 +74,6 @@ def is_list_type(ann):
 
 def get_list_arg_type(ann):
     return get_args(ann)[0] if get_args(ann) else str
-
-async def cast_type(typ: type, raw: str, connection_state: ConnectionState) -> Any:
-    if typ is str:
-        return raw
-    if typ is int:
-        return int(raw)
-    if typ is float:
-        return float(raw)
-    if typ is bool:
-        return raw.lower() in ("1", "true", "yes", "y", "t")
-    if typ is User:
-        mention = re.fullmatch(r"@user:(\d+)", raw)
-        if mention:
-            user_id = int(mention.group(1))
-            # fetch by ID from the mention
-            return await PartialUser(user_id, None)\
-                        .attach_state(connection_state)\
-                        .fetch()
-        try:
-            return await PartialUser(int(raw), None)\
-                        .attach_state(connection_state)\
-                        .fetch()
-        except ValueError:
-            # not a numeric ID, try username below
-            pass
-        return await PartialUser(None, raw)\
-                    .attach_state(connection_state)\
-                    .fetch_by_username()
-    raise ValueError(f"Unsupported type: {typ!r}")
 
 def is_union_type(ann):
     """"""
@@ -177,3 +179,67 @@ async def parse_args(func: Callable, input_str: str, message: Message, connectio
             out_args.append(await cast_type(ann, raw, connection_state))
 
     return out_args
+
+## Parsers for default supported Types
+
+class StrParser(Parser[str]):
+    async def parse_token(self, token: str, connection_state: ConnectionState) -> str:
+        return token  # just raw
+
+    @classmethod
+    def target_type(cls) -> Type[str]:
+        return str
+
+class IntParser(Parser[int]):
+    async def parse_token(self, token: str, connection_state: ConnectionState) -> int:
+        return int(token)  # may raise ValueError
+
+    @classmethod
+    def target_type(cls) -> Type[int]:
+        return int
+
+class FloatParser(Parser[float]):
+    async def parse_token(self, token: str, connection_state: ConnectionState) -> float:
+        return float(token)
+
+    @classmethod
+    def target_type(cls) -> Type[float]:
+        return float
+
+class BoolParser(Parser[bool]):
+    async def parse_token(self, token: str, connection_state: ConnectionState) -> bool:
+        return token.lower() in ("1", "true", "yes", "y", "t")
+
+    @classmethod
+    def target_type(cls) -> Type[bool]:
+        return bool
+
+class UserParser(Parser[User]):
+    async def parse_token(self, token: str, connection_state: ConnectionState) -> User:
+        # handle mentions like "@user:123"
+        m = re.fullmatch(r"@user:(\d+)", token)
+        if m:
+            uid = int(m.group(1))
+            return await PartialUser(uid, None)\
+                        .attach_state(connection_state)\
+                        .fetch()
+        # try numeric ID
+        try:
+            return await PartialUser(int(token), None)\
+                        .attach_state(connection_state)\
+                        .fetch()
+        except ValueError:
+            # fallback to username
+            return await PartialUser(None, token)\
+                        .attach_state(connection_state)\
+                        .fetch_by_username()
+
+    @classmethod
+    def target_type(cls) -> Type[User]:
+        return User
+
+register_parser(StrParser())
+register_parser(IntParser())
+register_parser(FloatParser())
+register_parser(BoolParser())
+register_parser(UserParser())
