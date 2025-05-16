@@ -43,7 +43,6 @@ export default class Client extends EventEmitter {
 
     _generateHelpMessage() {
         const commands = Array.from(this.commands);
-        console.log(commands)
         const commandSet = commands.map(([name, data]) => ({
             name,
             desc: data.desc || "No description provided."
@@ -113,7 +112,6 @@ export default class Client extends EventEmitter {
 
         this.channel.join()
             .receive("ok", (response) => {
-                console.log(response)
                 this._log('✅ Successfully joined bot channel');
             })
             .receive("error", (response) => {
