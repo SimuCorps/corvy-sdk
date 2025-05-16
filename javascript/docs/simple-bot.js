@@ -18,5 +18,3 @@ client.on("ready", (client) => {
 client.registerCommand("ping", async (msg, client, args) => {
     return "Pong!";
 });
-
-client.login();
