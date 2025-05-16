@@ -37,10 +37,6 @@ export default class Client extends EventEmitter {
         });
     }
 
-    getPrefix() {
-        return this.token;
-    }
-
     _generateHelpMessage() {
         const commands = Array.from(this.commands);
         const commandSet = commands.map(([name, data]) => ({
@@ -242,10 +238,11 @@ export default class Client extends EventEmitter {
                 await this._fetchFlockForNest(message.nest_id.toString());
                 flockId = this.flockNestMap[message.nest_id.toString()];
 
-                if (!flockId) {
-                    this._log(`⚠️ Could not find flock ID for nest ${message.nest_id}, can't respond`);
-                    return false;
-                }
+                /* Keeping incase dishy does some API stuff again. */
+                // if (!flockId) {
+                //     this._log(`⚠️ Could not find flock ID for nest ${message.nest_id}, can't respond`);
+                //     return false;
+                // }
 
                 message.flock_id = flockId;
             }
