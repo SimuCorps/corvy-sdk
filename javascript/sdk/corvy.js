@@ -194,14 +194,16 @@ export default class Client extends EventEmitter {
     }
 
     async _handleNewMessage(message) {
-        if (message.user?.is_bot) {
-            return;
-        }
-
         const msgContent = message.content;
         const nestId = message.nest_id;
         const flockId = message.flock_id;
         const sender = message.user?.username || 'unknown';
+
+        this.emit('messageRaw', message);
+
+        if (message.user?.is_bot) {
+            return;
+        }
 
         if (!msgContent || !nestId) return;
 
@@ -210,7 +212,6 @@ export default class Client extends EventEmitter {
         }
 
         this._log(`📨 Message in nest ${nestId} from ${sender}: '${msgContent}'`);
-        this.emit('messageRaw', message);
 
         if (msgContent.startsWith(this.prefix)) {
             const parts = msgContent.slice(this.prefix.length).trim().split(/\s+/);
@@ -232,10 +233,9 @@ export default class Client extends EventEmitter {
         const commandHandler = this.commands.get(commandName);
 
         if (commandHandler) {
-            let flockId = message.flock_id || this.flockNestMap[message.nest_id.toString()];
+            let flockId = message.flock_id
 
             if (!flockId) {
-                await this._fetchFlockForNest(message.nest_id.toString());
                 flockId = this.flockNestMap[message.nest_id.toString()];
 
                 /* Keeping incase dishy does some API stuff again. */
