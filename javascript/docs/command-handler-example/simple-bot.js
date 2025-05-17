@@ -24,5 +24,3 @@ for (let file of commandFiles) {
     
     client.registerCommand([command.name, ...(command.aliases ?? [])], command.execute);
 }
-
-client.login();
