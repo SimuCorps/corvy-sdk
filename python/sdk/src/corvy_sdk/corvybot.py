@@ -4,7 +4,6 @@ import signal
 import sys
 from typing import Awaitable, Callable
 import logging
-from warnings import deprecated
 import aiohttp
 import json
 from websockets import ConnectionClosed
