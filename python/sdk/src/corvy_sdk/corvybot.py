@@ -4,7 +4,6 @@ import signal
 import sys
 from typing import Awaitable, Callable
 import logging
-from warnings import deprecated
 import aiohttp
 import json
 from websockets import ConnectionClosed
@@ -284,16 +283,8 @@ class CorvyBot:
         # No commands were ran, so return false (we didn't run a command)
         return False
     
-    @deprecated("use nest.send()")
     async def send_message(self, flock_id: int, nest_id: int, content: str):
-        """
-        Send a message
-        
-        Args:
-            flock_id: Flock ID
-            nest_id: Nest ID
-            content: Message content
-        """
+        """Use nest.send() instead. Deprecated"""
         try:
             logger.debug(f'Sending message: "{content}"')
             
