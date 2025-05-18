@@ -7,4 +7,13 @@ from .nest import Nest
 from .command_parsing import Parser
 
 __version__ = "2.3.1"
-__all__ = ["Greedy", "MessageUser", "Message", "CorvyBot", "User", "Flock", "Nest", "Parser"]
+__all__ = [
+    "Greedy",
+    "MessageUser",
+    "Message",
+    "CorvyBot",
+    "User",
+    "Flock",
+    "Nest",
+    "Parser",
+]

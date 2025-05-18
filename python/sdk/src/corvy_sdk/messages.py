@@ -6,10 +6,12 @@ from .nest import PartialNest
 from .flock import PartialFlock
 from .user import PartialUser
 
+
 @dataclass
 class MessageUser(PartialUser):
     is_bot: bool
     avatar_url: str | None
+
 
 @dataclass
 class Message:
@@ -19,7 +21,7 @@ class Message:
     nest: PartialNest
     created_at: datetime
     user: MessageUser
-    
+
     def attach_state(self, state: ConnectionState):
         self._connection_state = state
         return self
