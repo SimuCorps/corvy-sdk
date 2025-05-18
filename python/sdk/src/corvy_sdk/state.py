@@ -2,6 +2,7 @@ from dataclasses import dataclass
 import aiohttp
 from websockets.asyncio.client import ClientConnection
 
+
 @dataclass
 class ConnectionState:
     client_session: aiohttp.ClientSession

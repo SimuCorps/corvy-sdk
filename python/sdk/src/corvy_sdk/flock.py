@@ -8,6 +8,7 @@ from .state import ConnectionState
 if TYPE_CHECKING:
     from .nest import Nest
 
+
 @dataclass
 class PartialFlock:
     id: int
@@ -29,8 +30,14 @@ class PartialFlock:
         f = data["flock"]
 
         flock = Flock(
-            f["id"], f["name"], f.get("icon"), f["members_count"], f["nests_count"],
-            datetime.strptime(f["created_at"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc),
+            f["id"],
+            f["name"],
+            f.get("icon"),
+            f["members_count"],
+            f["nests_count"],
+            datetime.strptime(f["created_at"], "%Y-%m-%dT%H:%M:%SZ").replace(
+                tzinfo=timezone.utc
+            ),
         )
 
         flock.attach_state(self._connection_state)
@@ -48,13 +55,22 @@ class PartialFlock:
 
         nests: list[Nest] = []
         for n in data["nests"]:
-            nest = Nest(n["id"], self, n["name"], n["position"], datetime.strptime(n["created_at"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc))
+            nest = Nest(
+                n["id"],
+                self,
+                n["name"],
+                n["position"],
+                datetime.strptime(n["created_at"], "%Y-%m-%dT%H:%M:%SZ").replace(
+                    tzinfo=timezone.utc
+                ),
+            )
             if hasattr(self, "_connection_state"):
                 nest.attach_state(self._connection_state)
             nests.append(nest)
 
         nests.sort(key=lambda x: x.id)
         return nests
+
 
 @dataclass
 class Flock(PartialFlock):
@@ -81,7 +97,9 @@ class Flock(PartialFlock):
                 f.get("icon"),
                 f["members_count"],
                 f["nests_count"],
-                datetime.strptime(f["created_at"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc),
+                datetime.strptime(f["created_at"], "%Y-%m-%dT%H:%M:%SZ").replace(
+                    tzinfo=timezone.utc
+                ),
             )
             flock.attach_state(state)
             flocks.append(flock)
